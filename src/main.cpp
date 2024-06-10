@@ -35,7 +35,7 @@ static void PWM_init_pin(uint pinN) {
     uint slice_num = pwm_gpio_to_slice_num(pinN);
 
     pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (2.0 * (3'579'545 / 1)));
+    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (2.0 * 3'579'545));
     pwm_config_set_wrap(&c_pwm, 3);//MAX PWM value
     pwm_init(slice_num, &c_pwm, true);
     pwm_set_gpio_level(pinN, 2);
@@ -84,7 +84,6 @@ uint16_t Samples = 0;
 uint16_t vgmpos = 0x40;
 
 void loop() {
-    if(vgmpos >= sizeof(vgm_song)) vgmpos = 0x40;
     uint8_t vgmdata = vgm_song[vgmpos];
     switch (vgmdata) {
         case 0x50: // 0x50 dd : PSG (SN76489/SN76496) write value dd
@@ -105,12 +104,12 @@ void loop() {
 
         case 0x62: // wait 735 samples (60th of a second)
             vgmpos++;
-            delay(17);
+            busy_wait_us(16666);
             break;
 
         case 0x63: // wait 882 samples (50th of a second)
             vgmpos++;
-            delay(20);
+            busy_wait_us(20000);
             break;
 
         case 0x70: // 0x7n : wait n+1 samples, n can range from 0 to 15
@@ -195,7 +194,7 @@ void loop() {
             break;
 
         case 0x66: // 0x66 : end of sound data
-            vgmpos = 0;
+            vgmpos = 0x40;
             SilenceAllChannels();
             delay(2000);
             break;
