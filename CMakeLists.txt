@@ -63,7 +63,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_pwm
         hardware_flash
 
-		tinyusb_host tinyusb_board
+#		tinyusb_host tinyusb_board
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -71,6 +71,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 )
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
+pico_enable_stdio_usb(${PROJECT_NAME} 1)
 pico_add_extra_outputs(${PROJECT_NAME})
 
 

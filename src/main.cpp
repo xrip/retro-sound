@@ -17,7 +17,7 @@ bool overclock() {
     return set_sys_clock_khz(frequencies[frequency_index] * 1000, true);
 }
 
-#define CLCK_PIN 0
+#define CLCK_PIN 29
 #define D0 9
 #define D1 8
 #define D2 7
@@ -45,7 +45,7 @@ static void PWM_init_pin(uint pinN) {
 #define HIGH 1
 #define LOW 0
 
-void PutByte(uint8_t b) {
+static inline void PutByte(uint8_t b) {
     gpio_put(D0, (b & 1) ? HIGH : LOW);
     gpio_put(D1, (b & 2) ? HIGH : LOW);
     gpio_put(D2, (b & 4) ? HIGH : LOW);
@@ -208,8 +208,9 @@ void loop() {
 
 int __time_critical_func(main)() {
     overclock();
-    PWM_init_pin(CLCK_PIN);
+    stdio_init_all();
 
+    PWM_init_pin(CLCK_PIN);
 
     gpio_init(D0);
     gpio_set_dir(D0, GPIO_OUT);
@@ -243,5 +244,9 @@ int __time_critical_func(main)() {
 
     gpio_put(WE, true);
     SilenceAllChannels();
-    while (1) loop();
+    while(1) {
+//        if (data)
+            SendByte(getchar());
+    }
+//    while (1) loop();
 }
