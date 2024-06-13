@@ -116,7 +116,6 @@ void ym3812_init(uint pin_base) {
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
     gpio_put(WE_PIN, LOW);
-    busy_wait_us(1);
     pio_sm_put(pio, sm, byte);
     busy_wait_us(1);
     gpio_put(WE_PIN, HIGH);
