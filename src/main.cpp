@@ -22,13 +22,14 @@ bool overclock() {
 #define DATA_START_PIN 2
 #define IC_PIN 10
 #define A0_PIN 11
-#define WR_PIN 12
+#define WE_PIN 12
 #define CLOCK_FREQUENCY (3'579'545)
 
 #define HIGH 1
 #define LOW 0
+
 // Если мы перепутаем пины
-static uint8_t  __aligned(4) reversed[] = {
+static const uint8_t  __aligned(4) reversed[] = {
         0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
         0x08, 0x88, 0x48, 0xC8, 0x28, 0xA8, 0x68, 0xE8, 0x18, 0x98, 0x58, 0xD8, 0x38, 0xB8, 0x78, 0xF8,
         0x04, 0x84, 0x44, 0xC4, 0x24, 0xA4, 0x64, 0xE4, 0x14, 0x94, 0x54, 0xD4, 0x34, 0xB4, 0x74, 0xF4,
@@ -54,7 +55,7 @@ static void clock_init(uint pin) {
 
     pwm_config c_pwm = pwm_get_default_config();
     pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (2.0 * CLOCK_FREQUENCY));
-    pwm_config_set_wrap(&c_pwm, 3);//MAX PWM value
+    pwm_config_set_wrap(&c_pwm, 3); //MAX PWM value
     pwm_init(slice_num, &c_pwm, true);
     pwm_set_gpio_level(pin, 2);
 
@@ -64,7 +65,7 @@ PIO pio = pio1;
 uint sm = pio_claim_unused_sm(pio, true);
 
 // The function to set up the PIO and load the program
-void ym3812_init(uint data_pin_base, uint wr_pin, uint a0_pin, uint ic_pin) {
+void ym3812_init(uint pin_base) {
     const uint16_t out_instr = pio_encode_out(pio_pins, 8);
     const struct pio_program sn76489_program = {
             .instructions = &out_instr,
@@ -76,17 +77,17 @@ void ym3812_init(uint data_pin_base, uint wr_pin, uint a0_pin, uint ic_pin) {
 //    pio_gpio_init(pio, WE);
 
     for (int i = 0; i < 8; i++) {
-        pio_gpio_init(pio, data_pin_base + i);
+        pio_gpio_init(pio, pin_base + i);
 
     }
 
-    pio_sm_set_consecutive_pindirs(pio, sm, data_pin_base, 8, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 8, true);
 //    pio_sm_set_consecutive_pindirs(pio, sm, WE, 1, true);
 
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset + 0, offset + (sn76489_program.length - 1));
 
-    sm_config_set_out_pins(&c, data_pin_base, 8);
+    sm_config_set_out_pins(&c, pin_base, 8);
 //    sm_config_set_sideset_pins(&c, WE);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     sm_config_set_out_shift(&c, true, true, 8);
@@ -101,28 +102,28 @@ void ym3812_init(uint data_pin_base, uint wr_pin, uint a0_pin, uint ic_pin) {
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 
-    gpio_init(a0_pin);
-    gpio_set_dir(a0_pin, GPIO_OUT);
+    gpio_init(A0_PIN);
+    gpio_set_dir(A0_PIN, GPIO_OUT);
 
-    gpio_init(wr_pin);
-    gpio_set_dir(wr_pin, GPIO_OUT);
+    gpio_init(WE_PIN);
+    gpio_set_dir(WE_PIN, GPIO_OUT);
 
-    gpio_init(ic_pin);
-    gpio_set_dir(ic_pin, GPIO_OUT);
-    gpio_put(ic_pin, HIGH);
+    gpio_init(IC_PIN);
+    gpio_set_dir(IC_PIN, GPIO_OUT);
+    gpio_put(IC_PIN, HIGH);
 }
 
 //==============================================================
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
-    gpio_put(WR_PIN, LOW);
+    gpio_put(WE_PIN, LOW);
     pio_sm_put(pio, sm, byte);
     busy_wait_us(1);
-    gpio_put(WR_PIN, HIGH);
+    gpio_put(WE_PIN, HIGH);
     //printf("%c", byte);
 }
 
-void ym3812_write(uint8_t reg, uint8_t val) {
+static inline void ym3812_write(uint8_t reg, uint8_t val) {
     ym3812_write_byte(0, reg);
     busy_wait_us(4);
     ym3812_write_byte(1, val);
@@ -131,15 +132,18 @@ void ym3812_write(uint8_t reg, uint8_t val) {
 
 int __time_critical_func(main)() {
     overclock();
-    stdio_init_all();
+    stdio_usb_init();
 
     clock_init(CLOCK_PIN);
-    ym3812_init(DATA_START_PIN, WR_PIN, A0_PIN, IC_PIN);
+    ym3812_init(DATA_START_PIN);
 
-    int i = 0;
+    int addr_or_data = 0;
+    int data;
     while (true) {
-        ym3812_write_byte(i, getchar());
-        i = !i;
+        data = getchar_timeout_us(10);
+        if (PICO_ERROR_TIMEOUT != data) {
+            ym3812_write_byte(addr_or_data, data);
+            addr_or_data ^= 1;
+        }
     }
-
 }
