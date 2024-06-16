@@ -8,6 +8,7 @@
 #include <hardware/structs/clocks.h>
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
+#include "song.h"
 
 uint16_t frequencies[] = { 272, 396, 404, 408, 412, 416, 420, 424, 432 };
 uint8_t frequency_index = 0;
@@ -20,9 +21,9 @@ bool overclock() {
 
 #define CLOCK_PIN 29
 #define DATA_START_PIN 2
-#define IC_PIN 10
-#define A0_PIN 11
-#define WE_PIN 12
+#define CS_PIN 14
+#define A0_PIN 15
+#define WE_PIN 23
 #define CLOCK_FREQUENCY (3'579'545)
 
 #define HIGH 1
@@ -107,27 +108,167 @@ void ym3812_init(uint pin_base) {
 
     gpio_init(WE_PIN);
     gpio_set_dir(WE_PIN, GPIO_OUT);
+    gpio_put(WE_PIN, HIGH);
 
-    gpio_init(IC_PIN);
-    gpio_set_dir(IC_PIN, GPIO_OUT);
-    gpio_put(IC_PIN, HIGH);
+    gpio_init(CS_PIN);
+    gpio_set_dir(CS_PIN, GPIO_OUT);
+    gpio_put(CS_PIN, LOW);
 }
 
 //==============================================================
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
-    gpio_put(WE_PIN, LOW);
-    pio_sm_put(pio, sm, byte);
-    busy_wait_us(1);
     gpio_put(WE_PIN, HIGH);
+    pio_sm_put(pio, sm, byte);
+    busy_wait_us(5);
+    gpio_put(WE_PIN, LOW);
     //printf("%c", byte);
 }
 
 static inline void ym3812_write(uint8_t reg, uint8_t val) {
     ym3812_write_byte(0, reg);
-    busy_wait_us(4);
+    busy_wait_us(10);
     ym3812_write_byte(1, val);
-    busy_wait_us(23);
+    busy_wait_us(28);
+}
+
+//==============================================================
+uint16_t ONESAMPLE = 23;
+uint16_t Samples = 0;
+uint16_t vgmpos = 0x40;
+
+void loop() {
+    uint8_t vgmdata = vgm_song[vgmpos];
+    switch (vgmdata) {
+        case 0x50: // 0x50 dd : PSG (SN76489/SN76496) write value dd
+            vgmpos++;
+            vgmdata = vgm_song[vgmpos];
+//            SendByte(vgmdata);
+            vgmpos++;
+            break;
+
+        case 0x51: {
+            vgmpos++;
+            const uint8_t addr = vgm_song[vgmpos];
+            vgmpos++;
+            const uint8_t data = vgm_song[vgmpos];
+            vgmpos++;
+            ym3812_write(addr, data);
+//            ym3812_write_byte(0, vgm_song[vgmpos++]);
+//            ym3812_write_byte(1, vgm_song[vgmpos++);
+            break;
+        }
+        case 0x61: // 0x61 nn nn : Wait n samples, n can range from 0 to 65535
+            vgmpos++;
+            Samples = (uint16_t) (vgm_song[vgmpos] & 0x00FF);
+            vgmpos++;
+            Samples |= (uint16_t) ((vgm_song[vgmpos] << 8) & 0xFF00);
+            vgmpos++;
+            sleep_ms(Samples * 0.023);
+            break;
+
+        case 0x62: // wait 735 samples (60th of a second)
+            vgmpos++;
+            busy_wait_us(16666);
+            break;
+
+        case 0x63: // wait 882 samples (50th of a second)
+            vgmpos++;
+            busy_wait_us(20000);
+            break;
+
+        case 0x70: // 0x7n : wait n+1 samples, n can range from 0 to 15
+            Samples = 1;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x71:
+            Samples = 2;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x72:
+            Samples = 3;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x73:
+            Samples = 4;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x74:
+            Samples = 5;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x75:
+            Samples = 6;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x76:
+            Samples = 7;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x77:
+            Samples = 8;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x78:
+            Samples = 9;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x79:
+            Samples = 10;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7a:
+            Samples = 11;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7b:
+            Samples = 12;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7c:
+            Samples = 13;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7d:
+            Samples = 14;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7e:
+            Samples = 15;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+        case 0x7f:
+            Samples = 16;
+            vgmpos++;
+            sleep_ms(Samples * ONESAMPLE);
+            break;
+
+        case 0x66: // 0x66 : end of sound data
+            vgmpos = 0x40;
+//            SilenceAllChannels();
+            sleep_ms(2000);
+            break;
+
+        default:
+            break;
+    } //end switch
+
+
 }
 
 int __time_critical_func(main)() {
@@ -137,6 +278,9 @@ int __time_critical_func(main)() {
     clock_init(CLOCK_PIN);
     ym3812_init(DATA_START_PIN);
 
+    while(1) {
+        loop();
+    }
     int addr_or_data = 0;
     int data;
     while (true) {
