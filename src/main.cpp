@@ -19,12 +19,13 @@ bool overclock() {
     return set_sys_clock_khz(frequencies[frequency_index] * 1000, true);
 }
 
-#define CLOCK_PIN 29
+#define CLOCK_PIN 15
 #define DATA_START_PIN 2
 #define CS_PIN 14
-#define A0_PIN 15
+#define A0_PIN 29
 #define WE_PIN 23
 #define CLOCK_FREQUENCY (3'579'545)
+//#define CLOCK_FREQUENCY (16'000'000)
 
 #define HIGH 1
 #define LOW 0
@@ -118,10 +119,15 @@ void ym3812_init(uint pin_base) {
 //==============================================================
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
-    gpio_put(WE_PIN, HIGH);
-    pio_sm_put(pio, sm, byte);
-    busy_wait_us(5);
     gpio_put(WE_PIN, LOW);
+    pio_sm_put(pio, sm, byte);
+    busy_wait_us(1 == (addr & 1) ? 25 : 4);
+
+    gpio_put(WE_PIN, HIGH);
+
+
+
+    //gpio_put(WE_PIN, LOW);
     //printf("%c", byte);
 }
 
@@ -130,20 +136,26 @@ static inline void ym3812_write(uint8_t reg, uint8_t val) {
     busy_wait_us(10);
     ym3812_write_byte(1, val);
     busy_wait_us(28);
+
 }
+
+
 
 //==============================================================
 uint16_t ONESAMPLE = 23;
 uint16_t Samples = 0;
 uint16_t vgmpos = 0x40;
+static inline void delay(unsigned int us) {
 
+    busy_wait_ms(us);
+}
 void loop() {
     uint8_t vgmdata = vgm_song[vgmpos];
     switch (vgmdata) {
         case 0x50: // 0x50 dd : PSG (SN76489/SN76496) write value dd
             vgmpos++;
             vgmdata = vgm_song[vgmpos];
-//            SendByte(vgmdata);
+            //SendByte(vgmdata);
             vgmpos++;
             break;
 
@@ -164,7 +176,7 @@ void loop() {
             vgmpos++;
             Samples |= (uint16_t) ((vgm_song[vgmpos] << 8) & 0xFF00);
             vgmpos++;
-            sleep_ms(Samples * 0.023);
+            delay(Samples * 0.023);
             break;
 
         case 0x62: // wait 735 samples (60th of a second)
@@ -260,8 +272,8 @@ void loop() {
 
         case 0x66: // 0x66 : end of sound data
             vgmpos = 0x40;
-//            SilenceAllChannels();
-            sleep_ms(2000);
+            //SilenceAllChannels();
+            delay(2000);
             break;
 
         default:
@@ -270,7 +282,6 @@ void loop() {
 
 
 }
-
 int __time_critical_func(main)() {
     overclock();
     stdio_usb_init();
