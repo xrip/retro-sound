@@ -19,10 +19,11 @@ bool overclock() {
     return set_sys_clock_khz(frequencies[frequency_index] * 1000, true);
 }
 
-#define CLOCK_PIN 15
+#define CLOCK_PIN 29
 #define DATA_START_PIN 2
+#define IC_PIN 0
 #define CS_PIN 14
-#define A0_PIN 29
+#define A0_PIN 15
 #define WE_PIN 23
 #define CLOCK_FREQUENCY (3'579'545)
 //#define CLOCK_FREQUENCY (16'000'000)
@@ -104,6 +105,14 @@ void ym3812_init(uint pin_base) {
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 
+    gpio_init(IC_PIN);
+    gpio_set_dir(IC_PIN, GPIO_OUT);
+    gpio_put(IC_PIN, HIGH);
+    sleep_ms(1);
+    gpio_put(IC_PIN, LOW);
+    sleep_ms(1);
+    gpio_put(IC_PIN, HIGH);
+
     gpio_init(A0_PIN);
     gpio_set_dir(A0_PIN, GPIO_OUT);
 
@@ -113,16 +122,18 @@ void ym3812_init(uint pin_base) {
 
     gpio_init(CS_PIN);
     gpio_set_dir(CS_PIN, GPIO_OUT);
-    gpio_put(CS_PIN, LOW);
+    gpio_put(CS_PIN, HIGH);
 }
 
 //==============================================================
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
+    gpio_put(CS_PIN, LOW);
     gpio_put(WE_PIN, LOW);
     pio_sm_put(pio, sm, byte);
     busy_wait_us(1 == (addr & 1) ? 25 : 4);
 
+    gpio_put(CS_PIN, HIGH);
     gpio_put(WE_PIN, HIGH);
 
 
@@ -144,7 +155,7 @@ static inline void ym3812_write(uint8_t reg, uint8_t val) {
 //==============================================================
 uint16_t ONESAMPLE = 23;
 uint16_t Samples = 0;
-uint16_t vgmpos = 0x100;
+uint16_t vgmpos = 0x40;
 static inline void delay(unsigned int us) {
 
     busy_wait_ms(us);
@@ -300,12 +311,13 @@ int __time_critical_func(main)() {
         byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
             if (addr_or_data == 0) {
-                reg = byte;
-                ym3812_write_byte(0, byte);
+                    reg = byte & 0x1;
+//                    ym3812_write_byte(0, byte);
 
             } else {
-                ym3812_write_byte(1, byte);
+                ym3812_write_byte(reg, byte);
             }
+            addr_or_data ^= 1;
 if (0)
             if (byte & 1) {
                 ym3812_write_byte(1, byte);
@@ -313,7 +325,6 @@ if (0)
                 ym3812_write_byte(0, byte);
                 reg = byte;
             }
-            addr_or_data ^= 1;
         }
     }
 }
