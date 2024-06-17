@@ -68,7 +68,7 @@ PIO pio = pio1;
 uint sm = pio_claim_unused_sm(pio, true);
 
 // The function to set up the PIO and load the program
-void ym3812_init(uint pin_base) {
+void ym2413_init(uint pin_base) {
     const uint16_t out_instr = pio_encode_out(pio_pins, 8);
     const struct pio_program sn76489_program = {
             .instructions = &out_instr,
@@ -126,7 +126,7 @@ void ym3812_init(uint pin_base) {
 }
 
 //==============================================================
-static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
+static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
     gpio_put(A0_PIN, addr & 1);
     gpio_put(CS_PIN, LOW);
     gpio_put(WE_PIN, LOW);
@@ -143,9 +143,9 @@ static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
 }
 
 static inline void ym3812_write(uint8_t reg, uint8_t val) {
-    ym3812_write_byte(0, reg);
+    ym2413_write_byte(0, reg);
     busy_wait_us(10);
-    ym3812_write_byte(1, val);
+    ym2413_write_byte(1, val);
     busy_wait_us(28);
 
 }
@@ -298,7 +298,7 @@ int __time_critical_func(main)() {
     stdio_usb_init();
 
     clock_init(CLOCK_PIN);
-    ym3812_init(DATA_START_PIN);
+    ym2413_init(DATA_START_PIN);
 
     while(0) {
         loop();
@@ -315,14 +315,14 @@ int __time_critical_func(main)() {
 //                    ym3812_write_byte(0, byte);
 
             } else {
-                ym3812_write_byte(reg, byte);
+                ym2413_write_byte(reg, byte);
             }
             addr_or_data ^= 1;
 if (0)
             if (byte & 1) {
-                ym3812_write_byte(1, byte);
+                ym2413_write_byte(1, byte);
             } else {
-                ym3812_write_byte(0, byte);
+                ym2413_write_byte(0, byte);
                 reg = byte;
             }
         }
