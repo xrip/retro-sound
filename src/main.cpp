@@ -144,7 +144,7 @@ static inline void ym3812_write(uint8_t reg, uint8_t val) {
 //==============================================================
 uint16_t ONESAMPLE = 23;
 uint16_t Samples = 0;
-uint16_t vgmpos = 0x40;
+uint16_t vgmpos = 0x100;
 static inline void delay(unsigned int us) {
 
     busy_wait_ms(us);
@@ -289,15 +289,30 @@ int __time_critical_func(main)() {
     clock_init(CLOCK_PIN);
     ym3812_init(DATA_START_PIN);
 
-    while(1) {
+    while(0) {
         loop();
     }
     int addr_or_data = 0;
-    int data;
+    int byte;
+    uint8_t reg;
+
     while (true) {
-        data = getchar_timeout_us(10);
-        if (PICO_ERROR_TIMEOUT != data) {
-            ym3812_write_byte(addr_or_data, data);
+        byte = getchar_timeout_us(1);
+        if (PICO_ERROR_TIMEOUT != byte) {
+            if (addr_or_data == 0) {
+                reg = byte;
+                ym3812_write_byte(0, byte);
+
+            } else {
+                ym3812_write_byte(1, byte);
+            }
+if (0)
+            if (byte & 1) {
+                ym3812_write_byte(1, byte);
+            } else {
+                ym3812_write_byte(0, byte);
+                reg = byte;
+            }
             addr_or_data ^= 1;
         }
     }
