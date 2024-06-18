@@ -1,3 +1,17 @@
+/* YM2413 Pinout:
+                .--\/--.
+         GND -- |01  18| <> D1
+          D2 <> |02  17| <> D0
+          D3 <> |03  16| -- +5V
+          D4 <> |04  15| -> RHYTHM OUT
+          D5 <> |05  14| -> MELODY OUT
+          D6 <> |06  13| <- /RESET
+          D7 <> |07  12| <- /CE
+         XIN -> |08  11| <- R/W
+        XOUT <- |09  10| <- A0
+                '------'
+ */
+
 #include <cstdio>
 #include <cstring>
 
