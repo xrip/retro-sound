@@ -53,7 +53,7 @@ bool overclock() {
 #define DATA_START_PIN 2
 #define A0_PIN 15
 #define WE_PIN 23
-#define CLOCK_PIN 21
+#define CLOCK_PIN 29
 
 #define CLOCK_FREQUENCY (3'579'545)
 
@@ -65,8 +65,7 @@ static void clock_init(uint pin) {
     uint slice_num = pwm_gpio_to_slice_num(pin);
 
     pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (1.0 * (4433000 / 1)));
-    //pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * CLOCK_FREQUENCY));
+    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * CLOCK_FREQUENCY));
     pwm_config_set_wrap(&c_pwm, 3); //MAX PWM value
     pwm_init(slice_num, &c_pwm, true);
     pwm_set_gpio_level(pin, 2);
@@ -252,19 +251,19 @@ int __time_critical_func(main)() {
     while (true) {
         int byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
-            if (addr_or_data == 0) {
+/*            if (addr_or_data == 0) {
                 reg = byte;
             } else {
                 AYCommand cmd = convert_sn76489_to_ay(reg, byte);
                 WriteAY(cmd.reg, cmd.value);
                 //ym2413_write_byte(reg, byte);
-            }
-            /*
+            }*/
+            /**/
             SendAY(byte | SN_1_WE);
             SendAY(byte);
             busy_wait_us(23);
             SendAY(byte | SN_1_WE);
-             */
+             /**/
                 //ym2413_write_byte(reg, byte);
             addr_or_data ^= 1;
         }
