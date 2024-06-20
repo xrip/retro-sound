@@ -146,95 +146,6 @@ static inline void sn76489_write_byte(uint8_t byte) {
     gpio_put(WE_PIN, HIGH);
 }
 
-// Define AY-3-8910 register addresses
-#define AY_REG_TONE_A_LOW   0x00
-#define AY_REG_TONE_A_HIGH  0x01
-#define AY_REG_TONE_B_LOW   0x02
-#define AY_REG_TONE_B_HIGH  0x03
-#define AY_REG_TONE_C_LOW   0x04
-#define AY_REG_TONE_C_HIGH  0x05
-#define AY_REG_VOL_A        0x08
-#define AY_REG_VOL_B        0x09
-#define AY_REG_VOL_C        0x0A
-
-typedef struct {
-    uint8_t reg;
-    uint8_t value;
-} AYCommand;
-
-AYCommand convert_sn76489_to_ay(uint8_t sn_data_byte, uint8_t data_value) {
-    AYCommand ay_cmd;
-    uint8_t command_type = (sn_data_byte & 0xF0) >> 4;
-    uint8_t channel = (sn_data_byte & 0x60) >> 5;
-    uint8_t data = sn_data_byte & 0x0F;
-
-    switch (command_type) {
-        case 0x8:  // Tone frequency, low 4 bits
-            switch (channel) {
-                case 0:
-                    ay_cmd.reg = AY_REG_TONE_A_LOW;
-                    break;
-                case 1:
-                    ay_cmd.reg = AY_REG_TONE_B_LOW;
-                    break;
-                case 2:
-                    ay_cmd.reg = AY_REG_TONE_C_LOW;
-                    break;
-                default:
-                    ay_cmd.reg = 0xFF;
-                    ay_cmd.value = 0xFF;
-                    return ay_cmd;
-            }
-            ay_cmd.value = data_value & 0x0F;
-            break;
-
-        case 0x9:  // Tone frequency, high 6 bits
-            switch (channel) {
-                case 0:
-                    ay_cmd.reg = AY_REG_TONE_A_HIGH;
-                    break;
-                case 1:
-                    ay_cmd.reg = AY_REG_TONE_B_HIGH;
-                    break;
-                case 2:
-                    ay_cmd.reg = AY_REG_TONE_C_HIGH;
-                    break;
-                default:
-                    ay_cmd.reg = 0xFF;
-                    ay_cmd.value = 0xFF;
-                    return ay_cmd;
-            }
-            ay_cmd.value = data_value & 0x3F;
-            break;
-
-        case 0xA:  // Volume
-            switch (channel) {
-                case 0:
-                    ay_cmd.reg = AY_REG_VOL_A;
-                    break;
-                case 1:
-                    ay_cmd.reg = AY_REG_VOL_B;
-                    break;
-                case 2:
-                    ay_cmd.reg = AY_REG_VOL_C;
-                    break;
-                default:
-                    ay_cmd.reg = 0xFF;
-                    ay_cmd.value = 0xFF;
-                    return ay_cmd;
-            }
-            ay_cmd.value = data_value & 0x0F;
-            break;
-
-        default:
-            // Unsupported command, return a default command
-            ay_cmd.reg = 0xFF;
-            ay_cmd.value = 0xFF;
-            break;
-    }
-
-    return ay_cmd;
-}
 
 
 int __time_critical_func(main)() {
@@ -245,27 +156,14 @@ int __time_critical_func(main)() {
     sleep_ms(1000);
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    bool addr_or_data = 0;
-    uint8_t reg;
-
     while (true) {
         int byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
-/*            if (addr_or_data == 0) {
-                reg = byte;
-            } else {
-                AYCommand cmd = convert_sn76489_to_ay(reg, byte);
-                WriteAY(cmd.reg, cmd.value);
-                //ym2413_write_byte(reg, byte);
-            }*/
-            /**/
             SendAY(byte | SN_1_WE);
             SendAY(byte);
             busy_wait_us(23);
             SendAY(byte | SN_1_WE);
-             /**/
                 //ym2413_write_byte(reg, byte);
-            addr_or_data ^= 1;
         }
     }
 /*    while(1) {
