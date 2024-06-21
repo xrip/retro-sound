@@ -128,22 +128,21 @@ void ym2413_init(uint pin_base) {
 
 //==============================================================
 static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
-    gpio_put(A0_PIN, addr & 1);
-    gpio_put(WE_PIN, LOW);
-    pio_sm_put(pio, sm, byte);
-    busy_wait_us(1 == (addr & 1) ? 26 : 5);
-    gpio_put(WE_PIN, HIGH);
+    const bool is_data = (addr & 1);
+    write_74hc595(is_data ? YM_A0 : 0 | byte);
+//    gpio_put(A0_PIN, addr & 1);
+//    gpio_put(WE_PIN, LOW);
+//    pio_sm_put(pio, sm, byte);
+    busy_wait_us(is_data ? 26 : 5);
+    write_74hc595(YM_WE | byte);
+//    gpio_put(WE_PIN, HIGH);
 }
 
 static inline void sn76489_write_byte(uint8_t byte) {
-    SendAY(SN_1_WE | byte);
-    SendAY(SN_1_WE);
-
-    gpio_put(WE_PIN, HIGH);
-    pio_sm_put(pio, sm, byte);
-    gpio_put(WE_PIN, LOW);
+    write_74hc595(byte | SN_1_WE);
+    write_74hc595(byte);
     busy_wait_us(23);
-    gpio_put(WE_PIN, HIGH);
+    write_74hc595(byte | SN_1_WE);
 }
 
 
@@ -153,17 +152,11 @@ int __time_critical_func(main)() {
     stdio_usb_init();
     clock_init(CLOCK_PIN);
     InitAY();
-    sleep_ms(1000);
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
     while (true) {
         int byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
-            SendAY(byte | SN_1_WE);
-            SendAY(byte);
-            busy_wait_us(23);
-            SendAY(byte | SN_1_WE);
-                //ym2413_write_byte(reg, byte);
+            sn76489_write_byte(byte & 0xFF);
         }
     }
 /*    while(1) {
