@@ -93,7 +93,7 @@ int __time_critical_func(main)() {
     //overclock();
     stdio_usb_init();
     clock_init(CLOCK_PIN);
-    InitAY();
+    init_74hc595();
 
     write_74hc595(YM_WE);
 
