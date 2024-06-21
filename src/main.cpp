@@ -39,7 +39,7 @@
 #include <hardware/structs/clocks.h>
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
-#include "74hc595/AY_PIO_595.h"
+#include "74hc595/74hc595.h"
 
 uint16_t frequencies[] = { 272, 396, 404, 408, 412, 416, 420, 424, 432 };
 uint8_t frequency_index = 0;
@@ -51,7 +51,6 @@ bool overclock() {
 }
 
 #define CLOCK_PIN 29
-
 #define CLOCK_FREQUENCY (3'579'545)
 
 #define HIGH 1
