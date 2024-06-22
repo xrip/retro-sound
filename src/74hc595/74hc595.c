@@ -57,10 +57,6 @@ void init_74hc595() {
     pio_sm_init(PIO_74HC595, SM_74HC595, offset, &c);
     pio_sm_set_enabled(PIO_74HC595, SM_74HC595, true);
 
-    float fdiv = (clock_get_hz(clk_sys) / 10000000);// 10Mhz
-    uint32_t fdiv32 = (uint32_t) (fdiv * (1 << 16));
-    fdiv32 = fdiv32 & 0xfffff000;//округление делителя
-    PIO_74HC595->sm[SM_74HC595].clkdiv = fdiv32; //делитель для конкретной sm
     pio_sm_set_clkdiv(PIO_74HC595, SM_74HC595, clock_get_hz(clk_sys) / SHIFT_SPEED);
     PIO_74HC595->txf[SM_74HC595] = 0;
 
