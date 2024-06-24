@@ -24,7 +24,8 @@
 
 #define SN_1_WE (1 << 8)
 
-#define SAA_WR (1 << 8)
+#define SAA1_WR (1 << 8)
+#define SAA2_WR (1 << 10)
 #define SAA_A0 (1 << 9)
 
 #define SN_2_WE (1 << 9)
@@ -91,11 +92,13 @@ static inline void sn76489_write_byte(uint8_t byte) {
     write_74hc595(byte | SN_1_WE);
 }
 
-static inline void saa1099_write_byte(uint8_t addr, uint8_t byte) {
+static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) {
     const bool is_addr = (addr & 1) == 0;
     write_74hc595(byte | (is_addr ? SAA_A0 : 0));
-    busy_wait_us(5);
-    write_74hc595(byte | SAA_WR);
+    busy_wait_us(2);
+    write_74hc595(byte | (chip ? SAA2_WR : SAA1_WR));
+    busy_wait_us(10);
+ //   write_74hc595(0);
 }
 
 
@@ -105,13 +108,20 @@ int __time_critical_func(main)() {
     clock_init(CLOCK_PIN);
     init_74hc595();
 
-    write_74hc595(YM_WE);
-    bool addr_or_data = 1;
+//    write_74hc595(SAA1_WR);
+//    write_74hc595(SAA2_WR);
+
+    bool addr_or_data = 0;
+    uint8_t latch = 0;
     while (true) {
         int byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
-            //sn76489_write_byte(byte & 0xFF);
-            saa1099_write_byte(addr_or_data, byte);
+            if (addr_or_data) {
+                //sn76489_write_byte(byte & 0xFF);
+                saa1099_write_byte(latch & 1, 0 == (latch & 2), byte);
+
+            }
+            latch = byte;
             addr_or_data ^= 1;
         }
     }
