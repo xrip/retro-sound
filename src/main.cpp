@@ -23,6 +23,10 @@
  */
 
 #define SN_1_WE (1 << 8)
+
+#define SAA_WR (1 << 8)
+#define SAA_A0 (1 << 9)
+
 #define SN_2_WE (1 << 9)
 
 #define YM_WE (1 << 10)
@@ -51,7 +55,8 @@ bool overclock() {
 }
 
 #define CLOCK_PIN 29
-#define CLOCK_FREQUENCY (3'579'545)
+//#define CLOCK_FREQUENCY (3'579'545)
+#define CLOCK_FREQUENCY (3'579'545 * 2)
 
 #define HIGH 1
 #define LOW 0
@@ -86,6 +91,12 @@ static inline void sn76489_write_byte(uint8_t byte) {
     write_74hc595(byte | SN_1_WE);
 }
 
+static inline void saa1099_write_byte(uint8_t addr, uint8_t byte) {
+    const bool is_addr = (addr & 1) == 0;
+    write_74hc595(byte | (is_addr ? SAA_A0 : 0));
+    busy_wait_us(5);
+    write_74hc595(byte | SAA_WR);
+}
 
 
 int __time_critical_func(main)() {
@@ -95,11 +106,13 @@ int __time_critical_func(main)() {
     init_74hc595();
 
     write_74hc595(YM_WE);
-
+    bool addr_or_data = 1;
     while (true) {
         int byte = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != byte) {
-            sn76489_write_byte(byte & 0xFF);
+            //sn76489_write_byte(byte & 0xFF);
+            saa1099_write_byte(addr_or_data, byte);
+            addr_or_data ^= 1;
         }
     }
 /*    while(1) {
