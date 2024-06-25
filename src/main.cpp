@@ -110,7 +110,7 @@ static inline void sn76489_write_byte(uint8_t byte) {
 }
 
 static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) {
-    uint16_t a0 = (addr & 1) == 0 ? A0 : 0;
+    const uint16_t a0 = (addr & 1) ? 0 : A0;
     write_74hc595(byte | a0 | (chip ? SAA_1_WR : SAA_2_WR)); // опускаем только тот который надо
     busy_wait_us(5);
     write_74hc595(byte | a0 | SAA_1_WR | SAA_2_WR); // Возвращаем оба обратно
