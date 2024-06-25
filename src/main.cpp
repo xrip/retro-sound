@@ -15,6 +15,15 @@
 /* 595 pin mappings
 0-7 DATA BUS
 
+ 8 WE/WR
+ 9 CS 0
+10 CS 1
+11 A0
+12 A1
+13 unused
+14 unused
+15 IC for all chips
+
 8   WE SN76489 #1
 9   WE SN76489 #2
 
@@ -46,7 +55,7 @@
 #include <hardware/pio.h>
 #include "74hc595/74hc595.h"
 
-uint16_t frequencies[] = { 272, 396, 404, 408, 412, 416, 420, 424, 432 };
+uint16_t frequencies[] = { 378, 396, 404, 408, 412, 416, 420, 424, 432 };
 uint8_t frequency_index = 0;
 
 bool overclock() {
@@ -93,12 +102,10 @@ static inline void sn76489_write_byte(uint8_t byte) {
 }
 
 static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) {
-    const bool is_addr = (addr & 1) == 0;
-    write_74hc595(byte | (is_addr ? SAA_A0 : 0));
-    busy_wait_us(2);
-    write_74hc595(byte | (chip ? SAA2_WR : SAA1_WR));
-    busy_wait_us(10);
- //   write_74hc595(0);
+    uint16_t is_addr = (addr & 1) == 0 ? SAA_A0 : 0;
+    write_74hc595(byte | is_addr | (chip ? SAA1_WR : SAA2_WR)); // опускаем только тот который надо
+    busy_wait_us(5);
+    write_74hc595(byte | is_addr | SAA1_WR | SAA2_WR); // Возвращаем оба обратно
 }
 
 enum chip_type {
@@ -155,52 +162,18 @@ int __time_critical_func(main)() {
                         ym2413_write_byte(TYPE(command), data);
                         break;
                     case SAA1099:
+//                        if(CHIP(command) == 0)
                         saa1099_write_byte(CHIP(command), TYPE(command), data);
                         break;
                     case 0xf:
                     default:
-                        // Initialization
-
+                        break;
                 }
-                //sn76489_write_byte(byte & 0xFF);
-
-            } else {
-                command = data;
             }
-
+            //sn76489_write_byte(byte & 0xFF);
+            command = data;
             is_data_byte ^= 1;
         }
     }
-/*    while(1) {
-        gpio_put(PICO_DEFAULT_LED_PIN, HIGH);
-        SendAY(SN_1_WE | 0b10);
-        sleep_ms(1000);
-        gpio_put(PICO_DEFAULT_LED_PIN, LOW);
-        SendAY(0);
-        sleep_ms(1000);
-    }*/
 }
-#if 0
-int __time_critical_func(main1)() {
-    overclock();
-    stdio_usb_init();
 
-    clock_init(CLOCK_PIN);
-    ym2413_init(DATA_START_PIN);
-
-    bool addr_or_data = 0;
-    uint8_t reg;
-
-    while (true) {
-        int byte = getchar_timeout_us(1);
-        if (PICO_ERROR_TIMEOUT != byte) {
-            if (addr_or_data == 0) {
-                reg = byte & 0x1;
-            } else {
-                ym2413_write_byte(reg, byte);
-            }
-            addr_or_data ^= 1;
-        }
-    }
-}
-#endif
