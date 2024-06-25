@@ -166,16 +166,16 @@ int __time_critical_func(main)() {
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
             if (is_data_byte) {
+                gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
+
                 switch (command >> 4) {
                     case SN76489:
                         sn76489_write_byte(/* CHIP(command), */ data);
                         break;
                     case YM2413:
-                        gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
                         ym2413_write_byte(TYPE(command), data);
                         break;
                     case SAA1099:
-//                        if(CHIP(command) == 0)
                         saa1099_write_byte(CHIP(command), TYPE(command), data);
                         break;
                     case 0xf:
