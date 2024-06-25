@@ -101,6 +101,35 @@ static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) 
  //   write_74hc595(0);
 }
 
+enum chip_type {
+    SN76489,
+    YM2413,
+    YM3812,
+    SAA1099,
+    YMF262,
+    YM2612,
+};
+
+/*
+ * 76543210 - command byte
+ * ||||||||
+ * |||||||+-- chip 0 / chip 1
+ * ||||||+--- address or data
+ * ||||++---- reserved
+ * ++++------ 0x0...0xE chip id:
+ *
+ *            0x0 - SN76489 (Tandy 3 voice)
+ *            0x1 - YM2413 (OPLL)
+ *            0x2 - YM3812 (OPL2)
+ *            0x3 - SAA1099 (Creative Music System / GameBlaster)
+ *            0x4 - YMF262 (OPL3)
+ *            0x5 - YM2612, YM2203, YM2608, YM2610, YMF288 (OPN2 and OPN-compatible series)
+ *            ...
+ *            0xf - all chips reset/initialization
+ */
+
+#define CHIP(b) (b & 1)
+#define TYPE(b) (0 == (b & 2))
 
 int __time_critical_func(main)() {
     //overclock();
@@ -111,18 +140,35 @@ int __time_critical_func(main)() {
 //    write_74hc595(SAA1_WR);
 //    write_74hc595(SAA2_WR);
 
-    bool addr_or_data = 0;
-    uint8_t latch = 0;
-    while (true) {
-        int byte = getchar_timeout_us(1);
-        if (PICO_ERROR_TIMEOUT != byte) {
-            if (addr_or_data) {
-                //sn76489_write_byte(byte & 0xFF);
-                saa1099_write_byte(latch & 1, 0 == (latch & 2), byte);
+    bool is_data_byte = 0;
+    uint8_t command = 0;
 
+    while (true) {
+        int data = getchar_timeout_us(1);
+        if (PICO_ERROR_TIMEOUT != data) {
+            if (is_data_byte) {
+                switch (command >> 4) {
+                    case SN76489:
+                        sn76489_write_byte(/* CHIP(command), */ data);
+                        break;
+                    case YM2413:
+                        ym2413_write_byte(TYPE(command), data);
+                        break;
+                    case SAA1099:
+                        saa1099_write_byte(CHIP(command), TYPE(command), data);
+                        break;
+                    case 0xf:
+                    default:
+                        // Initialization
+
+                }
+                //sn76489_write_byte(byte & 0xFF);
+
+            } else {
+                command = data;
             }
-            latch = byte;
-            addr_or_data ^= 1;
+
+            is_data_byte ^= 1;
         }
     }
 /*    while(1) {
