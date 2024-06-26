@@ -37,10 +37,7 @@
 #define SAA_2_WR (1 << 10)
 #define A0 (1 << 9)
 
-#define SN_2_WE (1 << 9)
-
 #define YM_WE (1 << 11)
-#define YM_A0 (1 << 11)
 
 
 #include <cstdio>
@@ -65,12 +62,10 @@ bool overclock() {
 }
 
 #define CLOCK_PIN 29
-#define CLOCK_PIN2 23
 #define CLOCK_FREQUENCY (3'579'545 * 2)
-#define CLOCK_FREQUENCY2 (3'579'545)
 
-#define HIGH 1
-#define LOW 0
+#define CLOCK_PIN2 23
+#define CLOCK_FREQUENCY2 (3'579'545)
 
 static void clock_init(uint pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
@@ -98,8 +93,9 @@ static void clock_init2(uint pin) {
 static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = (addr & 1) ? 0 : A0;
     write_74hc595(byte | a0 );
-    busy_wait_us(a0 ? 26 : 5);
+    busy_wait_us(1);
     write_74hc595(byte | a0 | YM_WE);
+    busy_wait_us(a0 ? 30 : 5);
 }
 
 static inline void sn76489_write_byte(uint8_t byte) {
@@ -176,6 +172,7 @@ int __time_critical_func(main)() {
                         ym2413_write_byte(TYPE(command), data);
                         break;
                     case SAA1099:
+
                         saa1099_write_byte(CHIP(command), TYPE(command), data);
                         break;
                     case 0xf:
