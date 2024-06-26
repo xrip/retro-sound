@@ -17,7 +17,7 @@
 11  A0 YM2413
  */
 
-#define SN_1_WE (1 << 8)
+#define SN_1_WE (1 << 12)
 
 #define SAA_1_WR (1 << 8)
 #define SAA_2_WR (1 << 10)
@@ -77,18 +77,18 @@ static void clock_init2(uint pin) {
 
 
 static inline void sn76489_write_byte(uint8_t byte) {
-    write_74hc595(byte | SN_1_WE);
-    write_74hc595(byte);
+    write_74hc595(byte | SN_1_WE | YM_WE);
+    write_74hc595(byte| YM_WE);
     busy_wait_us(23);
-    write_74hc595(byte | SN_1_WE);
+    write_74hc595(byte | SN_1_WE | YM_WE);
 }
 
 // YM2413
 static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 );
+    write_74hc595(byte | a0 | SN_1_WE );
     busy_wait_us(4);
-    write_74hc595(byte | a0 | YM_WE);
+    write_74hc595(byte | a0 | YM_WE | SN_1_WE );
     busy_wait_us(a0 ? 30 : 5);
 }
 
