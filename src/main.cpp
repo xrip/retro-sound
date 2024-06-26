@@ -52,7 +52,7 @@
 #include <hardware/pio.h>
 #include "74hc595/74hc595.h"
 
-uint16_t frequencies[] = { 378, 396, 404, 408, 412, 416, 420, 424, 432 };
+uint16_t frequencies[] = { 2521, 396, 404, 408, 412, 416, 420, 424, 432 };
 uint8_t frequency_index = 0;
 
 bool overclock() {
@@ -143,7 +143,9 @@ enum chip_type {
 #define TYPE(b) (0 == (b & 2))
 
 int __time_critical_func(main)() {
-    //overclock();
+
+    overclock();
+
     stdio_usb_init();
     clock_init(CLOCK_PIN);
     clock_init2(CLOCK_PIN2);
