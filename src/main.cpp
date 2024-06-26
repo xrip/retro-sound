@@ -75,26 +75,29 @@ static void clock_init2(uint pin) {
     pwm_set_gpio_level(pin, 2);
 }
 
+static uint16_t control_bits = 0;
 
 static inline void sn76489_write_byte(uint8_t byte) {
-    write_74hc595(byte | SN_1_WE | YM_WE);
-    write_74hc595(byte| YM_WE);
+    control_bits |= SN_1_WE;
+    write_74hc595(byte | control_bits);
+    control_bits ^= SN_1_WE;
+    write_74hc595(byte | control_bits);
     busy_wait_us(23);
-    write_74hc595(byte | SN_1_WE | YM_WE);
+    control_bits |= SN_1_WE;
+    write_74hc595(byte | control_bits);
 }
 
-static uint8_t control_bits = 0;
 
 // YM2413
 static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    control_bits |= a0;
     control_bits ^= YM_WE;
-    write_74hc595(byte | control_bits);
+    write_74hc595(byte | a0 | control_bits);
     busy_wait_us(4);
     control_bits |= YM_WE;
-    write_74hc595(byte | control_bits );
+    write_74hc595(byte | a0 | control_bits);
     busy_wait_us(a0 ? 30 : 5);
+
 }
 
 // SAA1099
