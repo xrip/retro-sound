@@ -1,26 +1,12 @@
-/* YM2413 Pinout:
-                .--\/--.
-         GND -- |01  18| <> D1
-          D2 <> |02  17| <> D0
-          D3 <> |03  16| -- +5V
-          D4 <> |04  15| -> RHYTHM OUT
-          D5 <> |05  14| -> MELODY OUT
-          D6 <> |06  13| <- /RESET
-          D7 <> |07  12| <- /CE
-         XIN -> |08  11| <- R/W
-        XOUT <- |09  10| <- A0
-                '------'
- */
-
-/* 595 pin mappings
+/* 74hc595 pin mappings
 0-7 DATA BUS
 
  8 WE/WR
- 9 CS 0
-10 CS 1
-11 A0
-12 A1
-13 unused
+ 9 A0
+10 A1
+11 CS 1
+12 CS 2
+13 CS 3
 14 unused
 15 IC for all chips
 
@@ -52,7 +38,7 @@
 #include <hardware/pio.h>
 #include "74hc595/74hc595.h"
 
-uint16_t frequencies[] = { 2521, 396, 404, 408, 412, 416, 420, 424, 432 };
+uint16_t frequencies[] = { 252, 396, 404, 408, 412, 416, 420, 424, 432 };
 uint8_t frequency_index = 0;
 
 bool overclock() {
@@ -89,14 +75,6 @@ static void clock_init2(uint pin) {
     pwm_set_gpio_level(pin, 2);
 }
 
-//==============================================================
-static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
-    const uint16_t a0 = (addr & 1) ? 0 : A0;
-    write_74hc595(byte | a0 );
-    busy_wait_us(1);
-    write_74hc595(byte | a0 | YM_WE);
-    busy_wait_us(a0 ? 30 : 5);
-}
 
 static inline void sn76489_write_byte(uint8_t byte) {
     write_74hc595(byte | SN_1_WE);
@@ -105,8 +83,18 @@ static inline void sn76489_write_byte(uint8_t byte) {
     write_74hc595(byte | SN_1_WE);
 }
 
+// YM2413
+static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
+    const uint16_t a0 = addr ? A0 : 0;
+    write_74hc595(byte | a0 );
+    busy_wait_us(4);
+    write_74hc595(byte | a0 | YM_WE);
+    busy_wait_us(a0 ? 30 : 5);
+}
+
+// SAA1099
 static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) {
-    const uint16_t a0 = (addr & 1) ? 0 : A0;
+    const uint16_t a0 = addr ? A0 : 0;
     write_74hc595(byte | a0 | (chip ? SAA_1_WR : SAA_2_WR)); // опускаем только тот который надо
     busy_wait_us(5);
     write_74hc595(byte | a0 | SAA_1_WR | SAA_2_WR); // Возвращаем оба обратно
@@ -139,8 +127,9 @@ enum chip_type {
  *            0xf - all chips reset/initialization
  */
 
-#define CHIP(b) (b & 1)
-#define TYPE(b) (0 == (b & 2))
+#define CHIP(b) (b >> 4)
+#define CHIPN(b) (b & 1)
+#define TYPE(b) (b & 2)
 
 int __time_critical_func(main)() {
 
@@ -166,24 +155,24 @@ int __time_critical_func(main)() {
             if (is_data_byte) {
                 gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
 
-                switch (command >> 4) {
-                    case SN76489:
-                        sn76489_write_byte(/* CHIP(command), */ data);
+                switch (CHIP(command)) {
+                    case SN76489: /* TODO: GameGear channel mapping */
+                        sn76489_write_byte(data);
                         break;
                     case YM2413:
                         ym2413_write_byte(TYPE(command), data);
                         break;
                     case SAA1099:
-
-                        saa1099_write_byte(CHIP(command), TYPE(command), data);
+                        saa1099_write_byte(CHIPN(command), TYPE(command), data);
                         break;
+
                     case 0xf:
                     default:
-                        /* TODO Global Reset */
+                        /* TODO Global Reset * /IC for YM chips */
                         break;
                 }
             }
-            //sn76489_write_byte(byte & 0xFF);
+
             command = data;
             is_data_byte ^= 1;
         }
