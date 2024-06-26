@@ -177,6 +177,7 @@ int __time_critical_func(main)() {
                         break;
                     case 0xf:
                     default:
+                        /* TODO Global Reset */
                         break;
                 }
             }
