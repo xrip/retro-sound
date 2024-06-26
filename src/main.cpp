@@ -83,12 +83,17 @@ static inline void sn76489_write_byte(uint8_t byte) {
     write_74hc595(byte | SN_1_WE | YM_WE);
 }
 
+static uint8_t control_bits = 0;
+
 // YM2413
 static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | SN_1_WE );
+    control_bits |= a0;
+    control_bits ^= YM_WE;
+    write_74hc595(byte | control_bits);
     busy_wait_us(4);
-    write_74hc595(byte | a0 | YM_WE | SN_1_WE );
+    control_bits |= YM_WE;
+    write_74hc595(byte | control_bits );
     busy_wait_us(a0 ? 30 : 5);
 }
 
@@ -144,7 +149,8 @@ int __time_critical_func(main)() {
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
 //    write_74hc595(SAA1_WR);
-    write_74hc595(YM_WE);
+    control_bits |= YM_WE;
+    write_74hc595(control_bits);
 
     bool is_data_byte = 0;
     uint8_t command = 0;
