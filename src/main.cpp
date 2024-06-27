@@ -1,31 +1,3 @@
-/* 74hc595 pin mappings
-0-7 DATA BUS
-
- 8 WE/WR
- 9 A0
-10 A1
-11 CS 1
-12 CS 2
-13 CS 3
-14 unused
-15 IC for all chips
-
-8   WE SN76489 #1
-9   WE SN76489 #2
-
-10  WE YM2413
-11  A0 YM2413
- */
-
-#define SN_1_WE (1 << 12)
-
-#define SAA_1_WR (1 << 8)
-#define SAA_2_WR (1 << 10)
-#define A0 (1 << 9)
-
-#define YM_WE (1 << 11)
-
-
 #include <cstdio>
 #include <cstring>
 
@@ -53,6 +25,15 @@ bool overclock() {
 #define CLOCK_PIN2 23
 #define CLOCK_FREQUENCY2 (3'579'545)
 
+#define SN_1_WE (1 << 12)
+
+#define SAA_1_WR (1 << 8)
+#define SAA_2_WR (1 << 10)
+#define A0 (1 << 9)
+
+#define YM_WE (1 << 11)
+
+
 static void clock_init(uint pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(pin);
@@ -76,36 +57,34 @@ static void clock_init2(uint pin) {
 }
 
 static uint16_t control_bits = 0;
+#define LOW(x) (control_bits &= ~(x))
+#define HIGH(x) (control_bits |= (x))
 
-static inline void sn76489_write_byte(uint8_t byte) {
-    control_bits |= SN_1_WE;
-    write_74hc595(byte | control_bits);
-    control_bits ^= SN_1_WE;
-    write_74hc595(byte | control_bits);
+// SN76489
+static inline void sn76489_write(uint8_t byte) {
+    write_74hc595(byte | HIGH(SN_1_WE));
+    write_74hc595(byte | LOW(SN_1_WE));
     busy_wait_us(23);
-    control_bits |= SN_1_WE;
-    write_74hc595(byte | control_bits);
+    write_74hc595(byte | HIGH(SN_1_WE));
 }
 
 
 // YM2413
-static inline void ym2413_write_byte(uint8_t addr, uint8_t byte) {
+static inline void ym2413_write(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    control_bits ^= YM_WE;
-    write_74hc595(byte | a0 | control_bits);
+    write_74hc595(byte | a0 | LOW(YM_WE));
     busy_wait_us(4);
-    control_bits |= YM_WE;
-    write_74hc595(byte | a0 | control_bits);
+    write_74hc595(byte | a0 | HIGH(YM_WE));
     busy_wait_us(a0 ? 30 : 5);
 
 }
 
 // SAA1099
-static inline void saa1099_write_byte(uint8_t chip, uint8_t addr, uint8_t byte) {
+static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | (chip ? SAA_1_WR : SAA_2_WR)); // опускаем только тот который надо
+    write_74hc595(byte | a0 | LOW(chip ? SAA_2_WR : SAA_1_WR)); // опускаем только тот который надо
     busy_wait_us(5);
-    write_74hc595(byte | a0 | SAA_1_WR | SAA_2_WR); // Возвращаем оба обратно
+    write_74hc595(byte | a0 | HIGH(SAA_1_WR | SAA_2_WR)); // Возвращаем оба обратно
 }
 
 enum chip_type {
@@ -140,25 +119,24 @@ enum chip_type {
 #define TYPE(b) (b & 2)
 
 int __time_critical_func(main)() {
-
     overclock();
 
     stdio_usb_init();
+
     clock_init(CLOCK_PIN);
     clock_init2(CLOCK_PIN2);
+
     init_74hc595();
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-//    write_74hc595(SAA1_WR);
-    control_bits |= YM_WE;
-    write_74hc595(control_bits);
+    write_74hc595(HIGH(YM_WE | SAA_1_WR | SAA_2_WR));
 
-    bool is_data_byte = 0;
+    bool is_data_byte = false;
     uint8_t command = 0;
 
-    while (true) {
+    for (;;) {
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
             if (is_data_byte) {
@@ -166,13 +144,13 @@ int __time_critical_func(main)() {
 
                 switch (CHIP(command)) {
                     case SN76489: /* TODO: GameGear channel mapping */
-                        sn76489_write_byte(data);
+                        sn76489_write(data);
                         break;
                     case YM2413:
-                        ym2413_write_byte(TYPE(command), data);
+                        ym2413_write(TYPE(command), data);
                         break;
                     case SAA1099:
-                        saa1099_write_byte(CHIPN(command), TYPE(command), data);
+                        saa1099_write(CHIPN(command), TYPE(command), data);
                         break;
 
                     case 0xf:
