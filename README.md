@@ -9,7 +9,7 @@ With this setup, you can bring the authentic sound of classic gaming and computi
 The goal of this project is to allow enthusiasts to listen to retro sound with real sound chips without needing any other retro hardware.
 
 ## How to use
-To use this project, you will need a modified version of DosBox-X or a Sega Master System/Sega Genesis emulator that can passthrough sound data directly to the chips via a COM port.
+To use this project, you will need a modified version of DosBox-X(to be provided later) or a Sega Master System/Sega Genesis emulator that can passthrough sound data directly to the chips via a COM port.
 
 The operation protocol is straightforward and consists of two-byte transfers. The first byte is the command byte:
 
@@ -39,6 +39,6 @@ The second byte is the data byte, which is routed directly to the chip.
 1. PCB (to be provided later)
 2. RP2040: The microcontroller that powers the project.
 3. 2x 74HC595 Shift Registers: These are used to interface with the sound chips.
-4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF288 is recommended for its versatility.
+4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF288 is recommended for its versatility. 
 5. Capacitors and Resistors: A few passive components for stable operation.
 6. Basic Soldering Skills: Minimal soldering is required to assemble the hardware.
