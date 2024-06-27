@@ -8,67 +8,13 @@
 #include <hardware/structs/clocks.h>
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
-#include "74hc595/74hc595.h"
+
+#include "audio.h"
 
 bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
     return set_sys_clock_khz(252 * 1000, true);
-}
-
-#define CLOCK_PIN 29
-#define CLOCK_FREQUENCY (3'579'545 * 2)
-
-#define CLOCK_PIN2 23
-#define CLOCK_FREQUENCY2 (3'579'545)
-
-#define SN_1_WE (1 << 12)
-
-#define SAA_1_WR (1 << 8)
-#define SAA_2_WR (1 << 10)
-#define A0 (1 << 9)
-
-#define YM_WE (1 << 11)
-
-static void clock_init(uint pin, uint32_t frequency) {
-    gpio_set_function(pin, GPIO_FUNC_PWM);
-    uint slice_num = pwm_gpio_to_slice_num(pin);
-
-    pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * frequency));
-    pwm_config_set_wrap(&c_pwm, 3); // MAX PWM value
-    pwm_init(slice_num, &c_pwm, true);
-    pwm_set_gpio_level(pin, 2);
-}
-
-static uint16_t control_bits = 0;
-#define LOW(x) (control_bits &= ~(x))
-#define HIGH(x) (control_bits |= (x))
-
-// SN76489
-static inline void sn76489_write(uint8_t byte) {
-    write_74hc595(byte | HIGH(SN_1_WE));
-    write_74hc595(byte | LOW(SN_1_WE));
-    busy_wait_us(23);
-    write_74hc595(byte | HIGH(SN_1_WE));
-}
-
-
-// YM2413
-static inline void ym2413_write(uint8_t addr, uint8_t byte) {
-    const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | LOW(YM_WE));
-    busy_wait_us(4);
-    write_74hc595(byte | a0 | HIGH(YM_WE));
-    busy_wait_us(a0 ? 30 : 5);
-}
-
-// SAA1099
-static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
-    const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | LOW(chip ? SAA_2_WR : SAA_1_WR)); // опускаем только тот который надо
-    busy_wait_us(5);
-    write_74hc595(byte | a0 | HIGH(SAA_1_WR | SAA_2_WR)); // Возвращаем оба обратно
 }
 
 enum chip_type {
@@ -102,20 +48,97 @@ enum chip_type {
 #define CHIPN(b) (b & 1)
 #define TYPE(b) (b & 2)
 
+#define PWM_PIN0 (26)
+#define PWM_PIN1 (27)
+#define BEEPER_PIN (28)
+
+#define SOUND_FREQUENCY 44100
+
+i2s_config_t i2s_config = i2s_get_default_config();
+static int16_t samples[2][888*2] = { 0 };
+static int active_buffer = 0;
+static int sample_index = 0;
+
+extern "C" void cms_samples(int16_t* output);
+extern "C" int16_t sn76489_sample();
+extern "C" void sn76489_reset();
+
+semaphore vga_start_semaphore;
+bool started = false;
+
+void __time_critical_func(second_core)() {
+    sn76489_reset();
+
+    uint64_t tick = time_us_64();
+    uint64_t last_timer_tick = tick, last_cursor_blink = tick, last_sound_tick = tick, last_dss_tick = tick;
+    sem_acquire_blocking(&vga_start_semaphore);
+    while (true) {
+	// Sound frequency 44100
+        if (tick >= last_sound_tick + (1000000 / SOUND_FREQUENCY)) {
+            int sample = 0;
+
+            sample += sn76489_sample();
+
+            samples[active_buffer][sample_index * 2] = sample;
+            samples[active_buffer][sample_index * 2 + 1] = sample;
+
+            //cms_samples(&samples[active_buffer][sample_index * 2]);
+
+            if (sample_index++ >= i2s_config.dma_trans_count) {
+                sample_index = 0;
+                i2s_dma_write(&i2s_config, samples[active_buffer]);
+                active_buffer ^= 1;
+            }
+
+            last_sound_tick = tick;
+        }
+
+        tick = time_us_64();
+        tight_loop_contents();
+    }
+}
+
+extern "C" void cms_out(uint16_t addr, uint16_t value);
+extern "C" void sn76489_out(uint16_t value);
+
+static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
+    static uint16_t latch_register;
+    if (addr == 0) {
+        latch_register = byte;
+    }
+
+
+}
+
 int __time_critical_func(main)() {
     overclock();
 
-    stdio_usb_init();
-
-    clock_init(CLOCK_PIN, CLOCK_FREQUENCY);
-    clock_init(CLOCK_PIN2, CLOCK_FREQUENCY2);
-
-    init_74hc595();
+    stdio_init_all();
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    write_74hc595(HIGH(YM_WE | SAA_1_WR | SAA_2_WR));
+
+    for (int i = 0; i < 6; i++) {
+        sleep_ms(23);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(23);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
+
+    i2s_config.sample_freq = SOUND_FREQUENCY;
+    i2s_config.dma_trans_count = SOUND_FREQUENCY / 60;
+    i2s_volume(&i2s_config, 2);
+    i2s_init(&i2s_config);
+    sleep_ms(100);
+
+    sem_init(&vga_start_semaphore, 0, 1);
+    multicore_launch_core1(second_core);
+    sem_release(&vga_start_semaphore);
+
+
+    sleep_ms(100);
+
 
     bool is_data_byte = false;
     uint8_t command = 0;
@@ -123,33 +146,10 @@ int __time_critical_func(main)() {
     while (true) {
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
-            if (is_data_byte) {
-                gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
-
-                switch (CHIP(command)) {
-                    case SN76489: /* TODO: GameGear channel mapping */
-                        sn76489_write(data);
-                        break;
-                    case YM2413:
-                        ym2413_write(TYPE(command), data);
-                        break;
-                    case SAA1099:
-                        saa1099_write(CHIPN(command), TYPE(command), data);
-                        break;
-
-                    case YM3812:
-                    case YMF262:
-                    case YM2612:
-                    // Reset
-                    case 0xf:
-                    default:
-                        /* TODO Global Reset /IC for YM chips */
-                        break;
-                }
-            }
-
-            command = data;
-            is_data_byte ^= 1;
+            gpio_put(PICO_DEFAULT_LED_PIN, is_data_byte);
+            started = true;
+            sn76489_out(data);
+            is_data_byte = !is_data_byte;
         }
     }
 }

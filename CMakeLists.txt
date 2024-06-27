@@ -36,12 +36,14 @@ add_executable(${PROJECT_NAME} ${SRC})
 
 set(FAMILY rp2040)
 set(BOARD pico_sdk)
-
+add_subdirectory(drivers/audio)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
+		audio
+
 		pico_runtime
         pico_stdlib
         pico_multicore
@@ -63,6 +65,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
+pico_enable_stdio_uart(${PROJECT_NAME} 1)
 pico_add_extra_outputs(${PROJECT_NAME})
 
 
