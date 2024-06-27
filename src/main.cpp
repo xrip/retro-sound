@@ -77,7 +77,7 @@ void __time_critical_func(second_core)() {
         if (tick >= last_sound_tick + (1000000 / SOUND_FREQUENCY)) {
             int sample = 0;
 
-            sample += sn76489_sample();
+            sample += sn76489_sample() << 2;
 
             samples[active_buffer][sample_index * 2] = sample;
             samples[active_buffer][sample_index * 2 + 1] = sample;
@@ -128,7 +128,7 @@ int __time_critical_func(main)() {
 
     i2s_config.sample_freq = SOUND_FREQUENCY;
     i2s_config.dma_trans_count = SOUND_FREQUENCY / 60;
-    i2s_volume(&i2s_config, 2);
+    i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
     sleep_ms(100);
 
