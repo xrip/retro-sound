@@ -10,13 +10,10 @@
 #include <hardware/pio.h>
 #include "74hc595/74hc595.h"
 
-uint16_t frequencies[] = { 252, 396, 404, 408, 412, 416, 420, 424, 432 };
-uint8_t frequency_index = 0;
-
 bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    return set_sys_clock_khz(frequencies[frequency_index] * 1000, true);
+    return set_sys_clock_khz(252 * 1000, true);
 }
 
 #define CLOCK_PIN 29
@@ -33,25 +30,13 @@ bool overclock() {
 
 #define YM_WE (1 << 11)
 
-
-static void clock_init(uint pin) {
+static void clock_init(uint pin, uint32_t frequency) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(pin);
 
     pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * CLOCK_FREQUENCY));
-    pwm_config_set_wrap(&c_pwm, 3); //MAX PWM value
-    pwm_init(slice_num, &c_pwm, true);
-    pwm_set_gpio_level(pin, 2);
-}
-
-static void clock_init2(uint pin) {
-    gpio_set_function(pin, GPIO_FUNC_PWM);
-    uint slice_num = pwm_gpio_to_slice_num(pin);
-
-    pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * CLOCK_FREQUENCY2));
-    pwm_config_set_wrap(&c_pwm, 3); //MAX PWM value
+    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * frequency));
+    pwm_config_set_wrap(&c_pwm, 3); // MAX PWM value
     pwm_init(slice_num, &c_pwm, true);
     pwm_set_gpio_level(pin, 2);
 }
@@ -76,7 +61,6 @@ static inline void ym2413_write(uint8_t addr, uint8_t byte) {
     busy_wait_us(4);
     write_74hc595(byte | a0 | HIGH(YM_WE));
     busy_wait_us(a0 ? 30 : 5);
-
 }
 
 // SAA1099
@@ -123,8 +107,8 @@ int __time_critical_func(main)() {
 
     stdio_usb_init();
 
-    clock_init(CLOCK_PIN);
-    clock_init2(CLOCK_PIN2);
+    clock_init(CLOCK_PIN, CLOCK_FREQUENCY);
+    clock_init(CLOCK_PIN2, CLOCK_FREQUENCY2);
 
     init_74hc595();
 
@@ -136,7 +120,7 @@ int __time_critical_func(main)() {
     bool is_data_byte = false;
     uint8_t command = 0;
 
-    for (;;) {
+    while (true) {
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
             if (is_data_byte) {
@@ -153,9 +137,13 @@ int __time_critical_func(main)() {
                         saa1099_write(CHIPN(command), TYPE(command), data);
                         break;
 
+                    case YM3812:
+                    case YMF262:
+                    case YM2612:
+                    // Reset
                     case 0xf:
                     default:
-                        /* TODO Global Reset * /IC for YM chips */
+                        /* TODO Global Reset /IC for YM chips */
                         break;
                 }
             }
