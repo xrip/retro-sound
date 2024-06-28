@@ -29,9 +29,9 @@ message(STATUS "")
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-#pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
-#target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-#pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
+pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
 
 set(FAMILY rp2040)

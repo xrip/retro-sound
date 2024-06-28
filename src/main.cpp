@@ -10,11 +10,14 @@
 #include <hardware/pio.h>
 
 #include "audio.h"
+extern "C" {
+#include "emulators/ym2413.h"
+}
 
 bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    return set_sys_clock_khz(252 * 1000, true);
+    return set_sys_clock_khz(378 * 1000, true);
 }
 
 enum chip_type {
@@ -68,6 +71,9 @@ bool started = false;
 
 void __time_critical_func(second_core)() {
     sn76489_reset();
+    YM2413Init(1, 3579545, SOUND_FREQUENCY);
+    YM2413ResetChip(0);
+
 
     uint64_t tick = time_us_64();
     uint64_t last_timer_tick = tick, last_cursor_blink = tick, last_sound_tick = tick, last_dss_tick = tick;
@@ -75,14 +81,19 @@ void __time_critical_func(second_core)() {
     while (true) {
 	// Sound frequency 44100
         if (tick >= last_sound_tick + (1000000 / SOUND_FREQUENCY)) {
-            int sample = 0;
+            int16_t *lr[2];
+            lr[0] =  &samples[active_buffer][sample_index * 2];
+            lr[1] =  &samples[active_buffer][sample_index * 2 + 1];
 
-            sample += sn76489_sample() << 2;
+            YM2413UpdateOne(0, lr, 1);
 
-            samples[active_buffer][sample_index * 2] = sample;
-            samples[active_buffer][sample_index * 2 + 1] = sample;
+            int16_t sample = sn76489_sample();
 
-            //cms_samples(&samples[active_buffer][sample_index * 2]);
+            samples[active_buffer][sample_index * 2] += sample;
+            samples[active_buffer][sample_index * 2 + 1] += sample;
+
+
+            cms_samples(&samples[active_buffer][sample_index * 2]);
 
             if (sample_index++ >= i2s_config.dma_trans_count) {
                 sample_index = 0;
@@ -102,9 +113,11 @@ extern "C" void cms_out(uint16_t addr, uint16_t value);
 extern "C" void sn76489_out(uint16_t value);
 
 static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
-    static uint16_t latch_register;
-    if (addr == 0) {
-        latch_register = byte;
+    uint8_t port = 0x220+(chip*2);
+    if (addr != 2) {
+        cms_out(port, byte);
+    } else {
+        cms_out(port+1, byte);
     }
 
 
@@ -118,16 +131,8 @@ int __time_critical_func(main)() {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-
-    for (int i = 0; i < 6; i++) {
-        sleep_ms(23);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(23);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-    }
-
     i2s_config.sample_freq = SOUND_FREQUENCY;
-    i2s_config.dma_trans_count = SOUND_FREQUENCY / 60;
+    i2s_config.dma_trans_count = SOUND_FREQUENCY / 60; // 60 FPS
     i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
     sleep_ms(100);
@@ -146,10 +151,34 @@ int __time_critical_func(main)() {
     while (true) {
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
-            gpio_put(PICO_DEFAULT_LED_PIN, is_data_byte);
-            started = true;
-            sn76489_out(data);
-            is_data_byte = !is_data_byte;
+            if (is_data_byte) {
+                gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
+
+                switch (CHIP(command)) {
+                    case SN76489: /* TODO: GameGear channel mapping */
+                        sn76489_out(data & 0xff);
+                        break;
+                    case YM2413:
+                        YM2413Write(0, TYPE(command) == 2, data);
+                        //ym2413_write(TYPE(command), data);
+                        break;
+                    case SAA1099:
+                        saa1099_write(CHIPN(command), TYPE(command), data);
+                        break;
+
+                    case YM3812:
+                    case YMF262:
+                    case YM2612:
+                        // Reset
+                    case 0xf:
+                    default:
+                        /* TODO Global Reset /IC for YM chips */
+                        break;
+                }
+            }
+
+            command = data;
+            is_data_byte ^= 1;
         }
     }
 }
