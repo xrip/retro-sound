@@ -11,6 +11,7 @@
 
 #include "audio.h"
 extern "C" {
+
 #include "emulators/ym2413.h"
 }
 
@@ -66,17 +67,24 @@ extern "C" void cms_samples(int16_t* output);
 extern "C" int16_t sn76489_sample();
 extern "C" void sn76489_reset();
 
+extern "C" void adlib_init(uint32_t samplerate);
+extern "C" void adlib_write(uintptr_t idx, uint8_t val);
+extern "C" void adlib_getsample(int16_t* sndptr, intptr_t numsamples);
+
 semaphore vga_start_semaphore;
 bool started = false;
 
 void __time_critical_func(second_core)() {
+
     sn76489_reset();
-    YM2413Init(1, 3579545, SOUND_FREQUENCY);
+    YM2413Init(1, 3'579'545, SOUND_FREQUENCY);
     YM2413ResetChip(0);
 
+    adlib_init(SOUND_FREQUENCY);
 
     uint64_t tick = time_us_64();
-    uint64_t last_timer_tick = tick, last_cursor_blink = tick, last_sound_tick = tick, last_dss_tick = tick;
+    uint64_t last_sound_tick = tick;
+
     sem_acquire_blocking(&vga_start_semaphore);
     while (true) {
 	// Sound frequency 44100
@@ -92,10 +100,15 @@ void __time_critical_func(second_core)() {
             samples[active_buffer][sample_index * 2] += sample;
             samples[active_buffer][sample_index * 2 + 1] += sample;
 
-
             cms_samples(&samples[active_buffer][sample_index * 2]);
 
+            adlib_getsample(&sample, 1);
+
+            samples[active_buffer][sample_index * 2] += sample;
+            samples[active_buffer][sample_index * 2 + 1] += sample;
+
             if (sample_index++ >= i2s_config.dma_trans_count) {
+                //adlib_getsample(samples[active_buffer], sample_index);
                 sample_index = 0;
                 i2s_dma_write(&i2s_config, samples[active_buffer]);
                 active_buffer ^= 1;
@@ -113,14 +126,7 @@ extern "C" void cms_out(uint16_t addr, uint16_t value);
 extern "C" void sn76489_out(uint16_t value);
 
 static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
-    uint8_t port = 0x220+(chip*2);
-    if (addr != 2) {
-        cms_out(port, byte);
-    } else {
-        cms_out(port+1, byte);
-    }
-
-
+    cms_out(0x220+(chip*2)+(addr == 2), byte);
 }
 
 int __time_critical_func(main)() {
@@ -140,7 +146,6 @@ int __time_critical_func(main)() {
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(second_core);
     sem_release(&vga_start_semaphore);
-
 
     sleep_ms(100);
 
@@ -166,7 +171,15 @@ int __time_critical_func(main)() {
                         saa1099_write(CHIPN(command), TYPE(command), data);
                         break;
 
-                    case YM3812:
+                    case YM3812: {
+                        static uint8_t  latched_register;
+                        if (!TYPE(command)) {
+                            latched_register = data & 0xff;
+                        } else {
+                            adlib_write(latched_register, data & 0xff);
+                        }
+                        break;
+                    }
                     case YMF262:
                     case YM2612:
                         // Reset
