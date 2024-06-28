@@ -1,3 +1,4 @@
+#include "pico/stdlib.h"
 /*
  *  Copyright (C) 2002-2020  The DOSBox Team
  *  OPL2/OPL3 emulation library
@@ -145,7 +146,7 @@ static fltype decrelconst[4] = {
 };
 
 
-void operator_advance(op_type* op_pt, Bit32s vib) {
+static void inline operator_advance(op_type* op_pt, Bit32s vib) {
 	op_pt->wfpos = op_pt->tcount;						// waveform position
 	
 	// advance waveform time
@@ -155,7 +156,7 @@ void operator_advance(op_type* op_pt, Bit32s vib) {
 	op_pt->generator_pos += generator_add;
 }
 
-void operator_advance_drums(op_type* op_pt1, Bit32s vib1, op_type* op_pt2, Bit32s vib2, op_type* op_pt3, Bit32s vib3) {
+static void inline operator_advance_drums(op_type* op_pt1, Bit32s vib1, op_type* op_pt2, Bit32s vib2, op_type* op_pt3, Bit32s vib3) {
 	Bit32u c1 = op_pt1->tcount/FIXEDPT;
 	Bit32u c3 = op_pt3->tcount/FIXEDPT;
 	Bit32u phasebit = (((c1 & 0x88) ^ ((c1<<5) & 0x80)) | ((c3 ^ (c3<<2)) & 0x20)) ? 0x02 : 0x00;
@@ -192,7 +193,7 @@ void operator_advance_drums(op_type* op_pt1, Bit32s vib1, op_type* op_pt2, Bit32
 
 // output level is sustained, mode changes only when operator is turned off (->release)
 // or when the keep-sustained bit is turned off (->sustain_nokeep)
-void operator_output(op_type* op_pt, Bit32s modulator, Bit32s trem) {
+static void inline operator_output(op_type* op_pt, Bit32s modulator, Bit32s trem) {
 	if (op_pt->op_state != OF_TYPE_OFF) {
 		op_pt->lastcval = op_pt->cval;
 		Bit32u i = (Bit32u)((op_pt->wfpos+modulator)/FIXEDPT);
@@ -313,7 +314,7 @@ optype_fptr opfuncs[6] = {
 	operator_off
 };
 
-void change_attackrate(Bitu regbase, op_type* op_pt) {
+void static inline change_attackrate(Bitu regbase, op_type* op_pt) {
 	Bits attackrate = adlibreg[ARC_ATTR_DECR+regbase]>>4;
 	if (attackrate) {
 		fltype f = (fltype)(pow(FL2,(fltype)attackrate+(op_pt->toff>>2)-1)*attackconst[op_pt->toff&3]*recipsamp);
@@ -352,7 +353,7 @@ void change_attackrate(Bitu regbase, op_type* op_pt) {
 	}
 }
 
-void change_decayrate(Bitu regbase, op_type* op_pt) {
+void static inline change_decayrate(Bitu regbase, op_type* op_pt) {
 	Bits decayrate = adlibreg[ARC_ATTR_DECR+regbase]&15;
 	// decaymul should be 1.0 when decayrate==0
 	if (decayrate) {
@@ -366,7 +367,7 @@ void change_decayrate(Bitu regbase, op_type* op_pt) {
 	}
 }
 
-void change_releaserate(Bitu regbase, op_type* op_pt) {
+void static inline change_releaserate(Bitu regbase, op_type* op_pt) {
 	Bits releaserate = adlibreg[ARC_SUSL_RELR+regbase]&15;
 	// releasemul should be 1.0 when releaserate==0
 	if (releaserate) {
@@ -380,7 +381,7 @@ void change_releaserate(Bitu regbase, op_type* op_pt) {
 	}
 }
 
-void change_sustainlevel(Bitu regbase, op_type* op_pt) {
+void static inline change_sustainlevel(Bitu regbase, op_type* op_pt) {
 	Bits sustainlevel = adlibreg[ARC_SUSL_RELR+regbase]>>4;
 	// sustainlevel should be 0.0 when sustainlevel==15 (max)
 	if (sustainlevel<15) {
@@ -390,7 +391,7 @@ void change_sustainlevel(Bitu regbase, op_type* op_pt) {
 	}
 }
 
-void change_waveform(Bitu regbase, op_type* op_pt) {
+void static inline change_waveform(Bitu regbase, op_type* op_pt) {
 #if defined(OPLTYPE_IS_OPL3)
 	if (regbase>=ARC_SECONDSET) regbase -= (ARC_SECONDSET-22);	// second set starts at 22
 #endif
@@ -400,7 +401,7 @@ void change_waveform(Bitu regbase, op_type* op_pt) {
 	// (might need to be adapted to waveform type here...)
 }
 
-void change_keepsustain(Bitu regbase, op_type* op_pt) {
+void static inline change_keepsustain(Bitu regbase, op_type* op_pt) {
 	op_pt->sus_keep = (adlibreg[ARC_TVS_KSR_MUL+regbase]&0x20)>0;
 	if (op_pt->op_state==OF_TYPE_SUS) {
 		if (!op_pt->sus_keep) op_pt->op_state = OF_TYPE_SUS_NOKEEP;
@@ -410,19 +411,19 @@ void change_keepsustain(Bitu regbase, op_type* op_pt) {
 }
 
 // enable/disable vibrato/tremolo LFO effects
-void change_vibrato(Bitu regbase, op_type* op_pt) {
+void static inline change_vibrato(Bitu regbase, op_type* op_pt) {
 	op_pt->vibrato = (adlibreg[ARC_TVS_KSR_MUL+regbase]&0x40)!=0;
 	op_pt->tremolo = (adlibreg[ARC_TVS_KSR_MUL+regbase]&0x80)!=0;
 }
 
 // change amount of self-feedback
-void change_feedback(Bitu chanbase, op_type* op_pt) {
+void static inline change_feedback(Bitu chanbase, op_type* op_pt) {
 	Bits feedback = adlibreg[ARC_FEEDBACK+chanbase]&14;
 	if (feedback) op_pt->mfbi = (Bit32s)(pow(FL2,(fltype)((feedback>>1)+8)));
 	else op_pt->mfbi = 0;
 }
 
-void change_frequency(Bitu chanbase, Bitu regbase, op_type* op_pt) {
+void static inline change_frequency(Bitu chanbase, Bitu regbase, op_type* op_pt) {
 	// frequency
 	Bit32u frn = ((((Bit32u)adlibreg[ARC_KON_BNUM+chanbase])&3)<<8) + (Bit32u)adlibreg[ARC_FREQ_NUM+chanbase];
 	// block number/octave
@@ -450,7 +451,7 @@ void change_frequency(Bitu chanbase, Bitu regbase, op_type* op_pt) {
 	change_releaserate(regbase,op_pt);
 }
 
-void enable_operator(Bitu regbase, op_type* op_pt, Bit32u act_type) {
+void static inline enable_operator(Bitu regbase, op_type* op_pt, Bit32u act_type) {
 	// check if this is really an off-on transition
 	if (op_pt->act_state == OP_ACT_OFF) {
 		Bits wselbase = regbase;
@@ -464,7 +465,7 @@ void enable_operator(Bitu regbase, op_type* op_pt, Bit32u act_type) {
 	}
 }
 
-void disable_operator(op_type* op_pt, Bit32u act_type) {
+void static inline disable_operator(op_type* op_pt, Bit32u act_type) {
 	// check if this is really an on-off transition
 	if (op_pt->act_state != OP_ACT_OFF) {
 		op_pt->act_state &= (~act_type);
@@ -597,7 +598,7 @@ void adlib_init(Bit32u samplerate) {
 
 
 
-void adlib_write(Bitu idx, Bit8u val) {
+void __time_critical_func(adlib_write)(Bitu idx, Bit8u val) {
 	Bit32u second_set = idx&0x100;
 	adlibreg[idx] = val;
 
@@ -950,7 +951,7 @@ static void OPL_INLINE clipit16(Bit32s ival, Bit16s* outval) {
 	outbufl[i] += chanval;
 #endif
 
-void adlib_getsample(Bit16s* sndptr, Bits numsamples) {
+void __time_critical_func(adlib_getsample)(Bit16s* sndptr, Bits numsamples) {
 	Bits i, endsamples;
 	op_type* cptr;
 

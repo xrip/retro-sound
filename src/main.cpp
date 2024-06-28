@@ -92,23 +92,20 @@ void __time_critical_func(second_core)() {
             int16_t *lr[2];
             lr[0] =  &samples[active_buffer][sample_index * 2];
             lr[1] =  &samples[active_buffer][sample_index * 2 + 1];
-
             YM2413UpdateOne(0, lr, 1);
 
             int16_t sample = sn76489_sample();
-
             samples[active_buffer][sample_index * 2] += sample;
             samples[active_buffer][sample_index * 2 + 1] += sample;
 
             cms_samples(&samples[active_buffer][sample_index * 2]);
 
             adlib_getsample(&sample, 1);
-
             samples[active_buffer][sample_index * 2] += sample;
             samples[active_buffer][sample_index * 2 + 1] += sample;
 
+
             if (sample_index++ >= i2s_config.dma_trans_count) {
-                //adlib_getsample(samples[active_buffer], sample_index);
                 sample_index = 0;
                 i2s_dma_write(&i2s_config, samples[active_buffer]);
                 active_buffer ^= 1;

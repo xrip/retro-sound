@@ -174,7 +174,7 @@ Bit32u vibtab_add;
 Bit32u tremtab_pos;
 Bit32u tremtab_add;
 
-
+/*
 // enable an operator
 void enable_operator(Bitu regbase, op_type* op_pt, Bit32u act_type);
 
@@ -189,7 +189,7 @@ void change_waveform(Bitu regbase, op_type* op_pt);
 void change_keepsustain(Bitu regbase, op_type* op_pt);
 void change_vibrato(Bitu regbase, op_type* op_pt);
 void change_feedback(Bitu chanbase, op_type* op_pt);
-
+*/
 // general functions
 void adlib_init(Bit32u samplerate);
 void adlib_write(Bitu idx, Bit8u val);
