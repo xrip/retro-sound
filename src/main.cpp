@@ -185,16 +185,20 @@ int __time_critical_func(main)() {
                     case SN76489: /* TODO: GameGear channel mapping */
                         sn76489_write(data);
                         break;
+
                     case YM2413:
                         ym2413_write(TYPE(command), data);
-                        break;
-                    case SAA1099:
-                        saa1099_write(CHIPN(command), TYPE(command), data);
                         break;
 
                     case YM3812:
                         ym3812_write_byte(TYPE(command), data);
                         break;
+
+                    case SAA1099:
+                        saa1099_write(CHIPN(command), TYPE(command), data);
+                        break;
+
+
                     case YMF262:
                     case YM2612:
                         // Reset
