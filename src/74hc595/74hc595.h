@@ -9,7 +9,7 @@ extern "C" {
 #define SM_74HC595 1
 
 // 10Mhz
-#define SHIFT_SPEED (10*1000000)
+#define SHIFT_SPEED (10*4000000)
 
 #define CLK_LATCH_595_BASE_PIN (26)
 #define DATA_595_PIN (28)
