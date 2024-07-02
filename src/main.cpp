@@ -70,8 +70,6 @@ static uint16_t control_bits = 0;
 
 // SN76489
 static inline void sn76489_write(uint8_t byte) {
-    byte = reversed[byte];
-
     write_74hc595(byte | LOW(WR | SN_1_CS));
     busy_wait_us(20);
     write_74hc595(byte | HIGH(WR | SN_1_CS));
