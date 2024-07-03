@@ -13,8 +13,10 @@
 bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    return set_sys_clock_khz(252 * 1000, true);
+    return set_sys_clock_khz(378 * 1000, true);
 }
+
+#define KEY1 (24)
 
 #define CLOCK_PIN 29
 #define CLOCK_FREQUENCY (3'579'545 * 2)
@@ -24,14 +26,14 @@ bool overclock() {
 
 #define A0 (1 << 8)
 #define A1 (1 << 9)
-#define WR (1 << 10)
+#define OPL3 (1 << 10)
 #define IC (1 << 11)
 
 #define SN_1_CS (1 << 12)
 
 #define SAA_1_CS (1 << 13)
 #define SAA_2_CS (1 << 14)
-#define YM_CS (1 << 15)
+#define OPL2 (1 << 15)
 
 // Если мы перепутаем пины
 static const uint8_t  __aligned(4) reversed[] = {
@@ -70,9 +72,9 @@ static uint16_t control_bits = 0;
 
 // SN76489
 static inline void sn76489_write(uint8_t byte) {
-    write_74hc595(byte | LOW(WR | SN_1_CS));
+    write_74hc595(byte | LOW(SN_1_CS));
     busy_wait_us(20);
-    write_74hc595(byte | HIGH(WR | SN_1_CS));
+    write_74hc595(byte | HIGH(SN_1_CS));
 
 }
 
@@ -82,9 +84,9 @@ static inline void ym2413_write(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
 
     // write_74hc595(byte | a0 );
-    write_74hc595(byte | a0 | LOW(YM_CS));
+    write_74hc595(byte | a0 | LOW(OPL2));
     busy_wait_us(4);
-    write_74hc595(byte | a0 | HIGH(YM_CS));
+    write_74hc595(byte | a0 | HIGH(OPL2));
     busy_wait_us(a0 ? 30 : 5);
 
 
@@ -95,9 +97,9 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t cs = chip ? SAA_2_CS : SAA_1_CS;
 
-    write_74hc595(byte | a0 | LOW(WR | cs)); // опускаем только тот который надо
+    write_74hc595(byte | a0 | LOW(cs)); // опускаем только тот который надо
     busy_wait_us(5);
-    write_74hc595(byte | a0 | HIGH(WR | cs)); // Возвращаем оба обратно
+    write_74hc595(byte | a0 | HIGH(cs)); // Возвращаем оба обратно
 
 //    write_74hc595(HIGH(chip ? SAA_2_CS : SAA_1_CS));
 }
@@ -105,9 +107,9 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
 
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | LOW(WR | YM_CS));
+    write_74hc595(byte | a0 | LOW(OPL2));
     busy_wait_us(5);
-    write_74hc595(byte | a0 | HIGH(WR | YM_CS));
+    write_74hc595(byte | a0 | HIGH(OPL2));
 }
 
 enum chip_type {
@@ -143,15 +145,24 @@ enum chip_type {
 
 void static inline reset_chips() {
     control_bits = 0;
-
+    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3));
     write_74hc595(HIGH(IC));
     sleep_ms(10);
     write_74hc595(LOW(IC));
-    sleep_ms(10);
+    sleep_ms(100);
     write_74hc595(HIGH(IC));
     sleep_ms(10);
 
-    write_74hc595(HIGH(SN_1_CS | YM_CS | SAA_1_CS | SAA_2_CS));
+    // Mute SN76489
+    sn76489_write(0x9F);
+    sleep_ms(10);
+    sn76489_write(0xBF);
+    sleep_ms(10);
+    sn76489_write(0xDF);
+    sleep_ms(10);
+    sn76489_write(0xFF);
+    sleep_ms(10);
+
 }
 
 int __time_critical_func(main)() {
@@ -162,18 +173,22 @@ int __time_critical_func(main)() {
     clock_init(CLOCK_PIN, CLOCK_FREQUENCY);
     clock_init(CLOCK_PIN2, CLOCK_FREQUENCY2);
 
+    gpio_init(KEY1);
+    gpio_set_dir(KEY1, GPIO_IN);
+    gpio_pull_up(KEY1);
+
     init_74hc595();
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
     reset_chips();
-
     bool is_data_byte = false;
     uint8_t command = 0;
 
 
     while (true) {
+        if (!gpio_get(KEY1)) { reset_chips(); }
         int data = getchar_timeout_us(1);
         if (PICO_ERROR_TIMEOUT != data) {
             if (is_data_byte) {
