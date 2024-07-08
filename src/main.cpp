@@ -22,7 +22,8 @@ bool overclock() {
 #define CLOCK_FREQUENCY (3'579'545 * 2)
 
 #define CLOCK_PIN2 23
-#define CLOCK_FREQUENCY2 (3'579'545)
+#define CLOCK_FREQUENCY2 (3'579'545 * 4)
+//(14'318'180)
 
 #define A0 (1 << 8)
 #define A1 (1 << 9)
@@ -112,6 +113,14 @@ static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     write_74hc595(byte | a0 | HIGH(OPL2));
 }
 
+static inline void ymf262_write_byte(uint8_t addr, uint8_t register_set, uint8_t byte) {
+    const uint16_t a0 = addr ? A0 : 0;
+    const uint16_t a1 = register_set ? A1 : 0;
+    write_74hc595(byte | a0 | a1 | LOW(OPL3));
+    busy_wait_us(5);
+    write_74hc595(byte | a0 | a1 | HIGH(OPL3));
+}
+
 enum chip_type {
     SN76489,
     YM2413,
@@ -162,7 +171,6 @@ void static inline reset_chips() {
     sleep_ms(10);
     sn76489_write(0xFF);
     sleep_ms(10);
-
 }
 
 int __time_critical_func(main)() {
@@ -203,18 +211,16 @@ int __time_critical_func(main)() {
                         ym2413_write(TYPE(command), data);
                         break;
 
+                    case YMF262:
                     case YM3812:
-                        ym3812_write_byte(TYPE(command), data);
+                    case YM2612:
+                        ymf262_write_byte(TYPE(command), CHIPN(command), data);
                         break;
 
                     case SAA1099:
                         saa1099_write(CHIPN(command), TYPE(command), data);
                         break;
 
-
-                    case YMF262:
-                    case YM2612:
-                        // Reset
                     case 0xf:
                     default:
                         reset_chips();
