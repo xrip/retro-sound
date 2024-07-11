@@ -16,7 +16,7 @@ extern "C" {
 
 void init_74hc595();
 
-void write_74hc595(uint16_t data);
+void write_74hc595(uint16_t data, uint16_t delay_us);
 
 #ifdef __cplusplus
 }

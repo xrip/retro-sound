@@ -8,12 +8,15 @@ static const uint16_t program_instructions595[] = {
         0x6001, //  1: out    pins, 1         side 0
         0x1041, //  2: jmp    x--, 1          side 2
         0xe82f, //  3: set    x, 15           side 1
+        0x6050, //  4: out    y, 16           side 0
+        0x0085, //  5: jmp    y--, 5          side 0
         //     .wrap
+
 };
 
 static const struct pio_program program595 = {
         .instructions = program_instructions595,
-        .length = 4,
+        .length = 6,
         .origin = -1,
 };
 
@@ -63,6 +66,6 @@ void init_74hc595() {
 
 };
 
-void __not_in_flash_func(write_74hc595)(uint16_t data) {
-    PIO_74HC595->txf[SM_74HC595] = data << 16;
+void __not_in_flash_func(write_74hc595)(uint16_t data, uint16_t delay_us) {
+    PIO_74HC595->txf[SM_74HC595] = data << 16 | delay_us << 4; // 1 microsecond per 15 cycles @ 15Mhz
 }

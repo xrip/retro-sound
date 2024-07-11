@@ -73,9 +73,9 @@ static uint16_t control_bits = 0;
 
 // SN76489
 static inline void sn76489_write(uint8_t byte) {
-    write_74hc595(byte | LOW(SN_1_CS));
-    busy_wait_us(20);
-    write_74hc595(byte | HIGH(SN_1_CS));
+    write_74hc595(byte | LOW(SN_1_CS), 20);
+    //busy_wait_us(20);
+    write_74hc595(byte | HIGH(SN_1_CS), 0);
 
 }
 
@@ -85,10 +85,8 @@ static inline void ym2413_write(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
 
     // write_74hc595(byte | a0 );
-    write_74hc595(byte | a0 | LOW(OPL2));
-    busy_wait_us(4);
-    write_74hc595(byte | a0 | HIGH(OPL2));
-    busy_wait_us(a0 ? 30 : 5);
+    write_74hc595(byte | a0 | LOW(OPL2), 4);
+    write_74hc595(byte | a0 | HIGH(OPL2), a0 ? 30 : 5);
 
 
 }
@@ -98,9 +96,8 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t cs = chip ? SAA_2_CS : SAA_1_CS;
 
-    write_74hc595(byte | a0 | LOW(cs)); // опускаем только тот который надо
-    busy_wait_us(5);
-    write_74hc595(byte | a0 | HIGH(cs)); // Возвращаем оба обратно
+    write_74hc595(byte | a0 | LOW(cs), 5); // опускаем только тот который надо
+    write_74hc595(byte | a0 | HIGH(cs), 0); // Возвращаем оба обратно
 
 //    write_74hc595(HIGH(chip ? SAA_2_CS : SAA_1_CS));
 }
@@ -108,17 +105,15 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
 
 static inline void ym3812_write_byte(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | LOW(OPL2));
-    busy_wait_us(5);
-    write_74hc595(byte | a0 | HIGH(OPL2));
+    write_74hc595(byte | a0 | LOW(OPL2), 5);
+    write_74hc595(byte | a0 | HIGH(OPL2), 0);
 }
 
 static inline void ymf262_write_byte(uint8_t addr, uint8_t register_set, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
-    write_74hc595(byte | a0 | a1 | LOW(OPL3));
-    busy_wait_us(5);
-    write_74hc595(byte | a0 | a1 | HIGH(OPL3));
+    write_74hc595(byte | a0 | a1 | LOW(OPL3), 5);
+    write_74hc595(byte | a0 | a1 | HIGH(OPL3), 0);
 }
 
 enum chip_type {
@@ -154,12 +149,12 @@ enum chip_type {
 
 void static inline reset_chips() {
     control_bits = 0;
-    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3));
-    write_74hc595(HIGH(IC));
+    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3), 0);
+    write_74hc595(HIGH(IC),0);
     sleep_ms(10);
-    write_74hc595(LOW(IC));
+    write_74hc595(LOW(IC),0);
     sleep_ms(100);
-    write_74hc595(HIGH(IC));
+    write_74hc595(HIGH(IC),0);
     sleep_ms(10);
 
     // Mute SN76489
@@ -193,7 +188,6 @@ int __time_critical_func(main)() {
     reset_chips();
     bool is_data_byte = false;
     uint8_t command = 0;
-
 
     while (true) {
         if (!gpio_get(KEY1)) { reset_chips(); }
