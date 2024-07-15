@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include <hardware/structs/vreg_and_chip_reset.h>
+#include <pico/runtime.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <hardware/pwm.h>
