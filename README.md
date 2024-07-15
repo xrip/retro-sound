@@ -3,6 +3,9 @@
 ## What is?
 RP2040 Retro Sound is a project that enables the Raspberry Pi Pico (RP2040) to serve as a COM port passthrough for various FM retro sound chips like the SAA1099, YM2413, SN76489, YM3812, and YMF262. It achieves this with the help of two 74HC595 shift registers.
 
+![PCB prototype](https://github.com/user-attachments/assets/85f5cebe-c401-4fa2-a182-d5b8ab359145)
+
+
 With this setup, you can bring the authentic sound of classic gaming and computing systems to life using original sound chips. Enjoy the nostalgia of retro audio in a modern, convenient package!
 
 ## Purpose
@@ -22,7 +25,8 @@ The operation protocol is straightforward and consists of two-byte transfers. Th
  * ||||++---- reserved
  * ++++------ 0x0...0xE chip id:
  *
- *            0x0 - SN76489 (Tandy 3 voice)
+ *            0x0 - SN76489 (Tandy 3 voice)![photo_2024-07-05_19-19-13](https://github.com/user-attachments/assets/35203a20-3679-40de-9a69-3cdcec56f17c)
+
  *            0x1 - YM2413 (OPLL)
  *            0x2 - YM3812 (OPL2)
  *            0x3 - SAA1099 (Creative Music System / GameBlaster)
