@@ -22,7 +22,7 @@ bool overclock() {
 #define CLOCK_FREQUENCY (3'579'545 * 2)
 
 #define CLOCK_PIN2 23
-#define CLOCK_FREQUENCY2 (3'579'545 * 4)
+#define CLOCK_FREQUENCY2 (3'579'545)
 //(14'318'180)
 
 #define A0 (1 << 8)
@@ -73,6 +73,7 @@ static uint16_t control_bits = 0;
 
 // SN76489
 static inline void sn76489_write(uint8_t byte) {
+    //byte = reversed[byte];
     write_74hc595(byte | LOW(SN_1_CS), 20);
     //busy_wait_us(20);
     write_74hc595(byte | HIGH(SN_1_CS), 0);
