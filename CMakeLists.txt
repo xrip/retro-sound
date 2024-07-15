@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 include(pico_sdk_import.cmake)
 
-project(sn76489 C CXX ASM)
+project(retro-sound C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
 
@@ -11,7 +11,8 @@ set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-#add_compile_options(-flto)
+
+add_compile_options(-flto)
 set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
 
@@ -46,19 +47,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-		pico_runtime
         pico_stdlib
-        pico_multicore
-        hardware_dma
         hardware_pio
-        hardware_i2c
-        hardware_interp
-        hardware_timer
-        hardware_clocks
         hardware_pwm
-        hardware_flash
-
-#		tinyusb_host tinyusb_board
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

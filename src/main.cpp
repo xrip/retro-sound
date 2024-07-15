@@ -2,29 +2,31 @@
 #include <cstring>
 
 #include <hardware/structs/vreg_and_chip_reset.h>
-#include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <hardware/pwm.h>
 #include <hardware/structs/clocks.h>
 #include <hardware/clocks.h>
 #include <hardware/pio.h>
+
 #include "74hc595.h"
 
-bool overclock() {
+static inline bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    return set_sys_clock_khz(378 * 1000, true);
+    return set_sys_clock_khz(378 * KHZ, true);
 }
 
 #define RESET_KEY_PIN (24)
 #define TEST_KEY_PIN (14)
 
+#define BASE_CLOCK_FREQUENCY (3'579'545)
+
 #define CLOCK_PIN 29
-#define CLOCK_FREQUENCY (3'579'545 * 4)
+// (14'318'180)
+#define CLOCK_FREQUENCY (BASE_CLOCK_FREQUENCY * 4)
 
 #define CLOCK_PIN2 23
-#define CLOCK_FREQUENCY2 (3'579'545)
-//(14'318'180)
+#define CLOCK_FREQUENCY2 BASE_CLOCK_FREQUENCY
 
 #define A0 (1 << 8)
 #define A1 (1 << 9)
@@ -85,8 +87,6 @@ static inline void ym2413_write(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     write_74hc595(byte | a0 | LOW(OPL2), 4);
     write_74hc595(byte | a0 | HIGH(OPL2), a0 ? 30 : 5);
-
-
 }
 
 // SAA1099
@@ -156,9 +156,16 @@ void static inline reset_chips() {
     sleep_ms(10);
     sn76489_write(0xFF);
     sleep_ms(10);
+
+    for (int i = 0; i < 6; i++) {
+        sleep_ms(23);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(23);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
 }
 
-int __time_critical_func(main)() {
+int main() {
     overclock();
 
     stdio_usb_init();
@@ -214,7 +221,12 @@ int __time_critical_func(main)() {
                         break;
 
                     case 0xf:
-                    default:
+                        if (command  & 0b1000) {
+                            const uint8_t clock_multiplier = (command & 0b11) + 1;
+                            clock_init(command & 0b100 ? CLOCK_PIN : CLOCK_PIN2, BASE_CLOCK_FREQUENCY * clock_multiplier);
+
+                        }
+
                         reset_chips();
                         break;
                 }
