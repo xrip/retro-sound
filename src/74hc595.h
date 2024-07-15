@@ -1,6 +1,14 @@
-#include "74hc595.h"
-#include "hardware/clocks.h"
-#include "pico/platform.h"
+#include <hardware/clocks.h>
+#include "hardware/pio.h"
+
+#define PIO_74HC595 pio0
+#define SM_74HC595 1
+
+// 15Mhz
+#define SHIFT_SPEED (15*1'000'000)
+
+#define CLK_LATCH_595_BASE_PIN (26)
+#define DATA_595_PIN (28)
 
 static const uint16_t program_instructions595[] = {
         //     .wrap_target
@@ -20,23 +28,11 @@ static const struct pio_program program595 = {
         .origin = -1,
 };
 
-void init_74hc595() {
+__always_inline void init_74hc595() {
     uint offset = pio_add_program(PIO_74HC595, &program595);
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset, offset + (program595.length - 1));
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-
-    // sm_config_set_in_shift(&c, true, false, 32);//??????  
-    // sm_config_set_in_pins(&c, PIN_PS2_DATA);
-
-//     pio_gpio_init(pioAY595, CLK_LATCH_595_BASE_PIN);
-//     pio_gpio_init(pioAY595, CLK_LATCH_595_BASE_PIN+1);
-// //pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
-//     sm_config_set_sideset_pins(&c, CLK_LATCH_595_BASE_PIN);
-
-//     sm_config_set_set_pins(&c, CLK_LATCH_595_BASE_PIN, 2);
-//     sm_config_set_sideset(&c, 2, false, false);
-
 
     //настройка side set
     sm_config_set_sideset_pins(&c, CLK_LATCH_595_BASE_PIN);
@@ -63,9 +59,8 @@ void init_74hc595() {
     pio_sm_set_clkdiv(PIO_74HC595, SM_74HC595, clock_get_hz(clk_sys) / SHIFT_SPEED);
     PIO_74HC595->txf[SM_74HC595] = 0;
 
+}
 
-};
-
-void __not_in_flash_func(write_74hc595)(uint16_t data, uint16_t delay_us) {
+__always_inline void write_74hc595(uint16_t data, uint16_t delay_us) {
     PIO_74HC595->txf[SM_74HC595] = data << 16 | delay_us << 4; // 1 microsecond per 15 cycles @ 15Mhz
 }
