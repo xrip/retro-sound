@@ -3,7 +3,7 @@ include(pico_sdk_import.cmake)
 
 project(retro-sound C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
-
+option(SN76489_REVERSED "SN76489 data pins revered" OFF)
 
 # Run from SRAM
 set(PICO_COPY_TO_RAM,1)

@@ -1,5 +1,4 @@
 #include <cstdio>
-#include <cstring>
 
 #include <hardware/structs/vreg_and_chip_reset.h>
 #include <pico/stdlib.h>
@@ -39,6 +38,8 @@ static inline bool overclock() {
 #define SAA_2_CS (1 << 14)
 #define OPL2 (1 << 15)
 
+
+#if SN76489_REVERSED
 // Если мы перепутаем пины
 static const uint8_t  __aligned(4) reversed[] = {
         0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
@@ -58,6 +59,7 @@ static const uint8_t  __aligned(4) reversed[] = {
         0x07, 0x87, 0x47, 0xC7, 0x27, 0xA7, 0x67, 0xE7, 0x17, 0x97, 0x57, 0xD7, 0x37, 0xB7, 0x77, 0xF7,
         0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF
 };
+#endif
 
 static void clock_init(uint pin, uint32_t frequency) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
@@ -75,22 +77,24 @@ static uint16_t control_bits = 0;
 #define HIGH(x) (control_bits |= (x))
 
 // SN76489
-static inline void sn76489_write(uint8_t byte) {
-    //byte = reversed[byte];
+static inline void SN76489_write(uint8_t byte) {
+#if SN76489_REVERSED
+    byte = reversed[byte];
+#endif
     write_74hc595(byte | LOW(SN_1_CS), 20);
     write_74hc595(byte | HIGH(SN_1_CS), 0);
 }
 
 
 // YM2413
-static inline void ym2413_write(uint8_t addr, uint8_t byte) {
+static inline void YM2413_write(uint8_t addr, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     write_74hc595(byte | a0 | LOW(OPL2), 4);
     write_74hc595(byte | a0 | HIGH(OPL2), a0 ? 30 : 5);
 }
 
 // SAA1099
-static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
+static inline void SAA1099_write(uint8_t addr, uint8_t chip, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t cs = chip ? SAA_2_CS : SAA_1_CS;
 
@@ -98,7 +102,8 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
     write_74hc595(byte | a0 | HIGH(cs), 0);
 }
 
-static inline void ymf262_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
+// YM3812 / YMF262
+static inline void OPL_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
@@ -148,13 +153,13 @@ void static inline reset_chips() {
     sleep_ms(10);
 
     // Mute SN76489
-    sn76489_write(0x9F);
+    SN76489_write(0x9F);
     sleep_ms(10);
-    sn76489_write(0xBF);
+    SN76489_write(0xBF);
     sleep_ms(10);
-    sn76489_write(0xDF);
+    SN76489_write(0xDF);
     sleep_ms(10);
-    sn76489_write(0xFF);
+    SN76489_write(0xFF);
     sleep_ms(10);
 
     for (int i = 0; i < 6; i++) {
@@ -203,27 +208,28 @@ int main() {
 
                 switch (CHIP(command)) {
                     case SN76489: /* TODO: GameGear channel mapping */
-                        sn76489_write(data);
+                        SN76489_write(data);
                         break;
 
                     case YM2413:
-                        ym2413_write(TYPE(command), data);
+                        YM2413_write(TYPE(command), data);
                         break;
 
                     case YMF262:
                     case YM3812:
                     case YM2612:
-                        ymf262_write_byte(TYPE(command), CHIPN(command), data);
+                        OPL_write_byte(TYPE(command), CHIPN(command), data);
                         break;
 
                     case SAA1099:
-                        saa1099_write(CHIPN(command), TYPE(command), data);
+                        SAA1099_write(TYPE(command), CHIPN(command), data);
                         break;
 
                     case 0xf:
-                        if (command  & 0b1000) {
+                        if (command & 0b1000) {
                             const uint8_t clock_multiplier = (command & 0b11) + 1;
-                            clock_init(command & 0b100 ? CLOCK_PIN : CLOCK_PIN2, BASE_CLOCK_FREQUENCY * clock_multiplier);
+                            clock_init(command & 0b100 ? CLOCK_PIN : CLOCK_PIN2,
+                                       BASE_CLOCK_FREQUENCY * clock_multiplier);
 
                         }
 

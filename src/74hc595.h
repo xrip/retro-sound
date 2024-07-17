@@ -27,7 +27,7 @@ static const struct pio_program program595 = {
         .origin = -1,
 };
 
-__always_inline void init_74hc595() {
+static inline void init_74hc595() {
     uint offset = pio_add_program(PIO_74HC595, &program595);
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset, offset + (program595.length - 1));
@@ -61,6 +61,6 @@ __always_inline void init_74hc595() {
     PIO_74HC595->txf[SM_74HC595] = 0;
 }
 
-__always_inline void write_74hc595(uint16_t data, uint16_t delay_us) {
+static inline void write_74hc595(uint16_t data, uint16_t delay_us) {
     PIO_74HC595->txf[SM_74HC595] = data << 16 | delay_us << 4; // 1 microsecond per 15 cycles @ 15Mhz
 }
