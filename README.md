@@ -7,6 +7,8 @@ PCB would like to look like this:
 
 ![PCB protype](https://github.com/user-attachments/assets/e183c0ca-3ec5-49cb-a45c-6c2a185dcbc2)
 
+<img src="https://github.com/user-attachments/assets/e312af8b-555e-49c1-9fdf-dcac058aa39f" width=768>
+
 
 With this setup, you can bring the authentic sound of classic gaming and computing systems to life using original sound chips. Enjoy the nostalgia of retro audio in a modern, convenient package!
 
