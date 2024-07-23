@@ -20,24 +20,23 @@ static inline bool overclock() {
 
 #define BASE_CLOCK_FREQUENCY (3'579'545)
 
-#define CLOCK_PIN 29
-// (14'318'180)
-#define CLOCK_FREQUENCY (BASE_CLOCK_FREQUENCY * 4)
+#define CLOCK_PIN 23
+#define CLOCK_FREQUENCY (BASE_CLOCK_FREQUENCY * 2)
 
-#define CLOCK_PIN2 23
-#define CLOCK_FREQUENCY2 BASE_CLOCK_FREQUENCY
+#define CLOCK_PIN2 29
+#define CLOCK_FREQUENCY2 (BASE_CLOCK_FREQUENCY)
 
 #define A0 (1 << 8)
 #define A1 (1 << 9)
-#define OPL3 (1 << 10)
-#define IC (1 << 11)
 
-#define SN_1_CS (1 << 12)
+#define IC (1 << 10)
 
-#define SAA_1_CS (1 << 13)
-#define SAA_2_CS (1 << 14)
-#define OPL2 (1 << 15)
+#define SN_1_CS (1 << 11)
 
+#define SAA_1_CS (1 << 12)
+#define SAA_2_CS (1 << 13)
+#define OPL2 (1 << 14)
+#define OPL3 (1 << 15)
 
 #if SN76489_REVERSED
 // Если мы перепутаем пины
@@ -102,8 +101,16 @@ static inline void SAA1099_write(uint8_t addr, uint8_t chip, uint8_t byte) {
     write_74hc595(byte | a0 | HIGH(cs), 0);
 }
 
+// YM3812 / YM2413
+static inline void OPL2_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
+    const uint16_t a0 = addr ? A0 : 0;
+    const uint16_t a1 = register_set ? A1 : 0;
+
+    write_74hc595(byte | a0 | a1 | LOW(OPL2), 5);
+    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 30);
+}
 // YM3812 / YMF262
-static inline void OPL_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
+static inline void OPL3_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
@@ -191,8 +198,17 @@ int main() {
     gpio_set_dir(TEST_KEY_PIN, GPIO_OUT);
 
     reset_chips();
-    bool is_data_byte = false;
+    int is_data_byte = false;
+    int current_clock = 0;
     uint8_t command = 0;
+
+
+    while (0) {
+        write_74hc595(0b0101, 0);
+        sleep_ms(1000);
+        write_74hc595(0b1010, 0);
+        sleep_ms(1000);
+    }
 
     while (true) {
         gpio_put(TEST_KEY_PIN, false);
@@ -208,6 +224,10 @@ int main() {
 
                 switch (CHIP(command)) {
                     case SN76489: /* TODO: GameGear channel mapping */
+                        if (current_clock != 0) {
+                            clock_init(CLOCK_PIN2, BASE_CLOCK_FREQUENCY);
+                            current_clock = 0;
+                        }
                         SN76489_write(data);
                         break;
 
@@ -216,9 +236,19 @@ int main() {
                         break;
 
                     case YMF262:
+                        if (current_clock != 1) {
+                            clock_init(CLOCK_PIN2, 4 * BASE_CLOCK_FREQUENCY);
+                            current_clock = 1;
+                        }
+                        OPL3_write_byte(TYPE(command), CHIPN(command), data);
+                        break;
                     case YM3812:
                     case YM2612:
-                        OPL_write_byte(TYPE(command), CHIPN(command), data);
+                        if (current_clock != 0) {
+                            clock_init(CLOCK_PIN2, BASE_CLOCK_FREQUENCY);
+                            current_clock = 0;
+                        }
+                        OPL2_write_byte(TYPE(command), CHIPN(command), data);
                         break;
 
                     case SAA1099:
