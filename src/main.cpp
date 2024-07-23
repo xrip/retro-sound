@@ -24,7 +24,7 @@ static inline bool overclock() {
 #define CLOCK_FREQUENCY (BASE_CLOCK_FREQUENCY * 2)
 
 #define CLOCK_PIN2 29
-#define CLOCK_FREQUENCY2 (BASE_CLOCK_FREQUENCY)
+#define CLOCK_FREQUENCY2 (BASE_CLOCK_FREQUENCY * 1)
 
 #define A0 (1 << 8)
 #define A1 (1 << 9)
@@ -109,6 +109,7 @@ static inline void OPL2_write_byte(uint16_t addr, uint16_t register_set, uint8_t
     write_74hc595(byte | a0 | a1 | LOW(OPL2), 5);
     write_74hc595(byte | a0 | a1 | HIGH(OPL2), 30);
 }
+
 // YM3812 / YMF262
 static inline void OPL3_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
