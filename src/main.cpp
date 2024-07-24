@@ -145,7 +145,7 @@ int __time_critical_func(main)() {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    usb_serial_init();
+    //usb_serial_init();
 
     i2s_config.sample_freq = SOUND_FREQUENCY;
     i2s_config.dma_trans_count = SOUND_FREQUENCY / 60; // 60 FPS
@@ -169,8 +169,8 @@ int __time_critical_func(main)() {
 
         if (!len) continue;
 
-                uint8_t data = tud_cdc_n_read_char(0);
-        if (1) {
+                int data = tud_cdc_n_read_char(0);
+        if (data != -1) {
 
             if (is_data_byte) {
                 gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
