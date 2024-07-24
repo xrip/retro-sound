@@ -55,6 +55,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 		hardware_pwm
 		hardware_dma
 		pico_multicore
+		tinyusb_board
+		tinyusb_device
+
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

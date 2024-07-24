@@ -11,8 +11,10 @@
 #include <hardware/pio.h>
 
 #include "audio.h"
-extern "C" {
 
+
+extern "C" {
+#include "usb-serial.h"
 #include "emulators/ym2413.h"
 }
 
@@ -74,7 +76,8 @@ extern "C" void adlib_getsample(int16_t* sndptr, intptr_t numsamples);
 
 semaphore vga_start_semaphore;
 bool started = false;
-
+int16_t dacout;
+bool dacen = false;
 void __time_critical_func(second_core)() {
 
     sn76489_reset();
@@ -93,18 +96,22 @@ void __time_critical_func(second_core)() {
             int16_t *lr[2];
             lr[0] =  &samples[active_buffer][sample_index * 2];
             lr[1] =  &samples[active_buffer][sample_index * 2 + 1];
-            YM2413UpdateOne(0, lr, 1);
+            //YM2413UpdateOne(0, lr, 1);
 
             int16_t sample = sn76489_sample();
-            samples[active_buffer][sample_index * 2] += sample;
-            samples[active_buffer][sample_index * 2 + 1] += sample;
-
+            samples[active_buffer][sample_index * 2] = sample;
+            samples[active_buffer][sample_index * 2 + 1] = sample;
+/*
             cms_samples(&samples[active_buffer][sample_index * 2]);
 
             adlib_getsample(&sample, 1);
             samples[active_buffer][sample_index * 2] += sample;
             samples[active_buffer][sample_index * 2 + 1] += sample;
-
+*/
+            if (dacen) {
+                samples[active_buffer][sample_index * 2] += dacout;
+                samples[active_buffer][sample_index * 2 + 1] += dacout;
+            }
 
             if (sample_index++ >= i2s_config.dma_trans_count) {
                 sample_index = 0;
@@ -130,10 +137,15 @@ static inline void saa1099_write(uint8_t chip, uint8_t addr, uint8_t byte) {
 int __time_critical_func(main)() {
     overclock();
 
-    stdio_init_all();
+    //stdio_init_all();
+    tusb_init();
+
+    //.tusb_init();
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
+    usb_serial_init();
 
     i2s_config.sample_freq = SOUND_FREQUENCY;
     i2s_config.dma_trans_count = SOUND_FREQUENCY / 60; // 60 FPS
@@ -152,8 +164,14 @@ int __time_critical_func(main)() {
     uint8_t command = 0;
 
     while (true) {
-        int data = getchar_timeout_us(1);
-        if (PICO_ERROR_TIMEOUT != data) {
+        tud_task();
+        uint32_t len = tud_cdc_n_available(0);
+
+        if (!len) continue;
+
+                uint8_t data = tud_cdc_n_read_char(0);
+        if (1) {
+
             if (is_data_byte) {
                 gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
 
@@ -180,6 +198,21 @@ int __time_critical_func(main)() {
                     }
                     case YMF262:
                     case YM2612:
+
+                        static uint8_t  latched_register;
+                        if (!TYPE(command)) {
+                            latched_register = data & 0xff;
+                        } else {
+                            if (latched_register == 0x2A) {
+                                dacout = ((int)(data & 0xff) - 0x80) << 6; /* level unknown (5 is too low, 8 is too loud) */
+                            }
+                            if (latched_register == 0x2B) {
+                                gpio_put(PICO_DEFAULT_LED_PIN, 1);
+                                dacen = (data & 0xff) & 0x80;
+                            }
+                            //adlib_write(latched_register, data & 0xff);
+                        }
+                        break;
                         // Reset
                     case 0xf:
                     default:
