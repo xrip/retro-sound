@@ -7,7 +7,7 @@ option(SN76489_REVERSED "SN76489 data pins revered" OFF)
 
 # Run from SRAM
 set(PICO_COPY_TO_RAM,1)
-set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
+#set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
