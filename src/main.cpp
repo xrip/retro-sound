@@ -17,6 +17,7 @@ extern "C" {
 #include "usb-serial.h"
 #include "emulators/ym2413.h"
 }
+#include "string.h"
 
 bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
