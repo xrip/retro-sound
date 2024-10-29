@@ -4,7 +4,7 @@
 #define PIO_74HC595 pio0
 #define SM_74HC595 1
 
-#define SHIFT_SPEED (15 * MHZ)
+#define SHIFT_SPEED (32 * MHZ)
 
 #define CLK_LATCH_595_BASE_PIN (26)
 #define DATA_595_PIN (28)
@@ -55,12 +55,13 @@ static inline void init_74hc595() {
     pio_sm_init(PIO_74HC595, SM_74HC595, offset, &c);
     pio_sm_set_enabled(PIO_74HC595, SM_74HC595, true);
 
-    pio_sm_set_clkdiv(PIO_74HC595, SM_74HC595, clock_get_hz(clk_sys) / SHIFT_SPEED);
+    pio_sm_set_clkdiv(PIO_74HC595, SM_74HC595, clock_get_hz(clk_sys) / (2 * SHIFT_SPEED));
 
     // Reset PIO program
     PIO_74HC595->txf[SM_74HC595] = 0;
 }
 
 static inline void write_74hc595(uint16_t data, uint16_t delay_us) {
-    PIO_74HC595->txf[SM_74HC595] = data << 16 | delay_us << 4; // 1 microsecond per 15 cycles @ 15Mhz
+    pio_sm_put_blocking(PIO_74HC595, SM_74HC595, (uint32_t)(data << 16 | delay_us << 6) ); // 1us @ 64Mhz
+    //PIO_74HC595->txf[SM_74HC595] = data << 16 | delay_us << 4; // 1 microsecond per 15 cycles @ 15Mhz
 }
