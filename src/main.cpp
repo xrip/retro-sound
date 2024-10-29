@@ -164,13 +164,13 @@ void static inline reset_chips() {
 
     // Mute SN76489
     SN76489_write(0x9F);
-    sleep_ms(10);
     SN76489_write(0xBF);
-    sleep_ms(10);
     SN76489_write(0xDF);
-    sleep_ms(10);
     SN76489_write(0xFF);
-    sleep_ms(10);
+
+    // Mute SAA1099
+    SAA1099_write(0, 0, 0x1C); SAA1099_write(1, 0, 0);
+    SAA1099_write(0, 1, 0x1C); SAA1099_write(1, 1, 0);
 
     for (int i = 0; i < 6; i++) {
         sleep_ms(23);
