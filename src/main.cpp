@@ -110,8 +110,8 @@ static inline void OPL2_write_byte(uint16_t addr, uint16_t register_set, uint8_t
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
-    write_74hc595(byte | a0 | a1 | LOW(OPL2), 30);
-    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 0);
+    write_74hc595(byte | a0 | a1 | LOW(OPL2), 5);
+    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 30);
 }
 
 // YM3812 / YMF262
@@ -169,8 +169,8 @@ void static inline reset_chips() {
     SN76489_write(0xFF);
 
     // Mute SAA1099
-    SAA1099_write(0, 0, 0x1C); SAA1099_write(1, 0, 0);
-    SAA1099_write(0, 1, 0x1C); SAA1099_write(1, 1, 0);
+    SAA1099_write(1, 0, 0x1C); SAA1099_write(0, 0, 0);
+    SAA1099_write(1, 1, 0x1C); SAA1099_write(0, 1, 0);
 
     for (int i = 0; i < 6; i++) {
         sleep_ms(23);
