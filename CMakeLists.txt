@@ -7,14 +7,12 @@ option(SN76489_REVERSED "SN76489 data pins revered" OFF)
 
 # Run from SRAM
 set(PICO_COPY_TO_RAM,1)
-set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
+#set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
-add_compile_options(-flto -fwhole-program -Ofast)
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
+add_compile_options(-flto -fwhole-program -ffunction-sections -fdata-sections -Ofast)
 
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
@@ -38,26 +36,31 @@ pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
 pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
-
-set(FAMILY rp2040)
-set(BOARD pico_sdk)
-
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
+add_subdirectory(audio)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        pico_stdlib
+		pico_runtime
+		pico_stdlib
         hardware_pio
         hardware_pwm
+        hardware_dma
+		pico_multicore
+		audio
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 		PICO_FLASH_SIZE_BYTES=16777216
+		AUDIO_PWM_PIN=21
 )
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
+
 pico_add_extra_outputs(${PROJECT_NAME})
 
 

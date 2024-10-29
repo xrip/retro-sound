@@ -1,5 +1,6 @@
 #include <cstdio>
-
+#include <pico/runtime.h>
+#include <pico/multicore.h>
 #include <hardware/structs/vreg_and_chip_reset.h>
 #include <pico/stdlib.h>
 #include <hardware/pwm.h>
@@ -8,11 +9,14 @@
 #include <hardware/pio.h>
 
 #include "74hc595.h"
+extern "C" {
+#include "audio.h"
+}
 
 static inline bool overclock() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    return set_sys_clock_khz(378 * KHZ, true);
+    return set_sys_clock_khz(396 * KHZ, true);
 }
 
 #define RESET_KEY_PIN (24)
@@ -80,7 +84,7 @@ static inline void SN76489_write(uint8_t byte) {
 #if SN76489_REVERSED
     byte = reversed[byte];
 #endif
-    write_74hc595(byte | LOW(SN_1_CS), 20);
+    write_74hc595(byte | LOW(SN_1_CS), 10);
     write_74hc595(byte | HIGH(SN_1_CS), 0);
 }
 
@@ -106,8 +110,8 @@ static inline void OPL2_write_byte(uint16_t addr, uint16_t register_set, uint8_t
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
-    write_74hc595(byte | a0 | a1 | LOW(OPL2), 5);
-    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 30);
+    write_74hc595(byte | a0 | a1 | LOW(OPL2), 30);
+    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 0);
 }
 
 // YM3812 / YMF262
@@ -126,6 +130,7 @@ enum chip_type {
     SAA1099,
     YMF262,
     YM2612,
+    PCM,
 };
 
 /*
@@ -152,13 +157,10 @@ enum chip_type {
 
 void static inline reset_chips() {
     control_bits = 0;
-    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3), 0);
-    write_74hc595(HIGH(IC), 0);
-    sleep_ms(10);
-    write_74hc595(LOW(IC), 0);
-    sleep_ms(100);
-    write_74hc595(HIGH(IC), 0);
-    sleep_ms(10);
+    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3), 10);
+    write_74hc595(HIGH(IC), 10);
+    write_74hc595(LOW(IC), 100);
+    write_74hc595(HIGH(IC), 10);
 
     // Mute SN76489
     SN76489_write(0x9F);
@@ -178,7 +180,45 @@ void static inline reset_chips() {
     }
 }
 
-int main() {
+#define SOUND_FREQUENCY (49716)
+i2s_config_t i2s_config = i2s_get_default_config();
+static int16_t samples[2][888*2] = { 0 };
+static int active_buffer = 0;
+static int sample_index = 0;
+semaphore vga_start_semaphore;
+
+
+void __time_critical_func() second_core() {
+    i2s_config.sample_freq = SOUND_FREQUENCY;
+    i2s_config.dma_trans_count = SOUND_FREQUENCY / 60; // 60 FPS
+    i2s_volume(&i2s_config, 8);
+    i2s_init(&i2s_config);
+
+    uint64_t tick = time_us_64();
+    uint64_t last_sound_tick = tick;
+
+    sem_acquire_blocking(&vga_start_semaphore);
+
+    while (true) {
+        // Sound frequency 44100
+        if (tick >= last_sound_tick + (1000000 / SOUND_FREQUENCY)) {
+
+            if (sample_index++ >= i2s_config.dma_trans_count) {
+                sample_index = 0;
+                i2s_dma_write(&i2s_config, samples[active_buffer]);
+                active_buffer ^= 1;
+            }
+
+            last_sound_tick = tick;
+        }
+
+
+
+        tick = time_us_64();
+        tight_loop_contents();
+    }
+}
+int __time_critical_func() main() {
     overclock();
 
     stdio_usb_init();
@@ -191,6 +231,10 @@ int main() {
     gpio_pull_up(RESET_KEY_PIN);
 
     init_74hc595();
+
+    sem_init(&vga_start_semaphore, 0, 1);
+    multicore_launch_core1(second_core);
+    sem_release(&vga_start_semaphore);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -256,6 +300,17 @@ int main() {
                         SAA1099_write(TYPE(command), CHIPN(command), data);
                         break;
 
+                    case PCM: {
+                        static int16_t sample = 0;
+                        if (TYPE(command)) {
+                            sample |= (data & 0xff) << 8;
+                            samples[!active_buffer][sample_index] = sample;
+                        } else {
+                            sample = data & 0xff;
+                        }
+                        gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
+                        break;
+                    }
                     case 0xf:
                         if (command & 0b1000) {
                             const uint8_t clock_multiplier = (command & 0b11) + 1;
