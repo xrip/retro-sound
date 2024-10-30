@@ -11,7 +11,7 @@ set(PICO_COPY_TO_RAM,1)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-add_compile_options(-flto -fwhole-program -Ofast)
+add_compile_options(-Ofast)
 set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
 
@@ -30,8 +30,8 @@ foreach (SRC_FILE IN LISTS SRC)
 	message(STATUS "${SRC_FILE}")
 endforeach ()
 message(STATUS "")
-
 add_executable(${PROJECT_NAME} ${SRC})
+pico_generate_pio_header(${PROJECT_NAME}  ${CMAKE_CURRENT_LIST_DIR}/spi.pio)
 
 pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
@@ -53,6 +53,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_pwm
 
 		hardware_dma
+		hardware_spi
 		pico_multicore
 )
 
