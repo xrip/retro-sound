@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name "DOSmusicZERO")(type "KiCad")(uri "${KIPRJMOD}/DOSmusicZERO.pretty")(options "")(descr ""))
+)
