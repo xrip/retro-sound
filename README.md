@@ -7,7 +7,7 @@ Assembled PCB:
 
 <img src='https://github.com/user-attachments/assets/a69674ed-7f3c-4460-88c9-afa7530ff6ef' title='assembled pcb' height=640>
 
-
+Gerbers available via releases, or you can use whole KiCad project from ``hardware`` folder
 
 With this setup, you can bring the authentic sound of classic gaming and computing systems to life using original sound chips. Enjoy the nostalgia of retro audio in a modern, convenient package!
 
@@ -42,7 +42,7 @@ The operation protocol is straightforward and consists of two-byte transfers. Th
 The second byte is the data byte, which is routed directly to the chip.
 
 ## Requirements
-1. PCB (to be provided later)
+1. PCB (gerbers available via releases, or you can use whole KiCad project from ``hardware`` dir)
 2. RP2040 mini: The microcontroller that powers the project.
 4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF288 is recommended for its versatility. 
 5. Capacitors and Resistors: A few passive components for stable operation.
