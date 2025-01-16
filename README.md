@@ -47,3 +47,6 @@ The second byte is the data byte, which is routed directly to the chip.
 4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF288 is recommended for its versatility. 
 5. Capacitors and Resistors: A few passive components for stable operation.
 6. Basic Soldering Skills: Minimal soldering is required to assemble the hardware.
+
+## Credits
+PCB designs and all hardware stuff are by Sa Gin
