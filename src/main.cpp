@@ -1,48 +1,35 @@
 #include <cstdio>
+#include <pico/stdio_usb.h>
 #include <pico/runtime.h>
 #include <pico/multicore.h>
 #include <hardware/structs/vreg_and_chip_reset.h>
-#include <pico/stdlib.h>
-#include <hardware/pwm.h>
 #include <hardware/structs/clocks.h>
 #include <hardware/clocks.h>
-#include <hardware/pio.h>
+#include <hardware/gpio.h>
 
-#include "74hc595.h"
-extern "C" {
-#include "audio.h"
-}
+#include "ws2812b.h"
+#include "pio_clock_generator.h"
 
-static inline bool overclock() {
-    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
-    sleep_ms(10);
-    return set_sys_clock_khz(396 * KHZ, true);
-}
+#define TIMER_PERIOD_MS 1
 
-#define RESET_KEY_PIN (24)
-#define TEST_KEY_PIN (14)
+#define OUT_PIN_MASK 0x0000ffff
+#define IC (1 << 8)
+#define A0 (1 << 9)
+#define A1 (1 << 10)
 
-#define BASE_CLOCK_FREQUENCY (3'579'545)
-
-#define CLOCK_PIN 23
-#define CLOCK_FREQUENCY (BASE_CLOCK_FREQUENCY * 2)
-
-#define CLOCK_PIN2 29
-#define CLOCK_FREQUENCY2 (BASE_CLOCK_FREQUENCY * 1)
-
-#define A0 (1 << 8)
-#define A1 (1 << 9)
-
-#define IC (1 << 10)
-
-#define SN_1_CS (1 << 11)
-
+#define SN_1_CS  (1 << 11)
 #define SAA_1_CS (1 << 12)
 #define SAA_2_CS (1 << 13)
-#define OPL2 (1 << 14)
-#define OPL3 (1 << 15)
+#define OPL2     (1 << 14)
+#define OPL3     (1 << 15)
 
-#if SN76489_REVERSED
+
+uint16_t control_bits = 0;
+#define LOW(x) (control_bits &= ~(x))
+#define HIGH(x) (control_bits |= (x))
+
+
+#if defined(SN76489_REVERSED)
 // Если мы перепутаем пины
 static const uint8_t  __aligned(4) reversed[] = {
         0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
@@ -64,63 +51,64 @@ static const uint8_t  __aligned(4) reversed[] = {
 };
 #endif
 
-static void clock_init(uint pin, uint32_t frequency) {
-    gpio_set_function(pin, GPIO_FUNC_PWM);
-    uint slice_num = pwm_gpio_to_slice_num(pin);
-
-    pwm_config c_pwm = pwm_get_default_config();
-    pwm_config_set_clkdiv(&c_pwm, clock_get_hz(clk_sys) / (4.0 * frequency));
-    pwm_config_set_wrap(&c_pwm, 3); // MAX PWM value
-    pwm_init(slice_num, &c_pwm, true);
-    pwm_set_gpio_level(pin, 2);
+static inline bool overclock() {
+    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
+    sleep_ms(10);
+    return set_sys_clock_khz(396 * KHZ, true);
 }
 
-static uint16_t control_bits = 0;
-#define LOW(x) (control_bits &= ~(x))
-#define HIGH(x) (control_bits |= (x))
+static inline void write_GPIO(const uint16_t data, const uint16_t delay_us) {
+    gpio_put_masked(OUT_PIN_MASK, data);
+    busy_wait_us(delay_us);
+}
+
+
+static inline uint32_t time_ms() {
+    return time_us_32() >> 10; //0-4194190
+}
+
 
 // SN76489
 static inline void SN76489_write(uint8_t byte) {
-#if SN76489_REVERSED
+#if defined(SN76489_REVERSED)
     byte = reversed[byte];
 #endif
-    write_74hc595(byte | LOW(SN_1_CS), 10);
-    write_74hc595(byte | HIGH(SN_1_CS), 0);
+    write_GPIO(byte | LOW(SN_1_CS), 20);
+    write_GPIO(byte | HIGH(SN_1_CS), 0);
 }
 
-
 // YM2413
-static inline void YM2413_write(uint8_t addr, uint8_t byte) {
+static inline void YM2413_write(const uint8_t addr, const uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
-    write_74hc595(byte | a0 | LOW(OPL2), 4);
-    write_74hc595(byte | a0 | HIGH(OPL2), a0 ? 30 : 5);
+    write_GPIO(byte | a0 | LOW(OPL2), 4);
+    write_GPIO(byte | a0 | HIGH(OPL2), a0 ? 30 : 5);
 }
 
 // SAA1099
-static inline void SAA1099_write(uint8_t addr, uint8_t chip, uint8_t byte) {
+static inline void SAA1099_write(const uint8_t addr, const uint8_t chip, const uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t cs = chip ? SAA_2_CS : SAA_1_CS;
 
-    write_74hc595(byte | a0 | LOW(cs), 5);
-    write_74hc595(byte | a0 | HIGH(cs), 0);
+    write_GPIO(byte | a0 | LOW(cs), 5);
+    write_GPIO(byte | a0 | HIGH(cs), 0);
 }
 
-// YM3812 / YM2413
-static inline void OPL2_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
+// YM3812
+static inline void YM3812_write_byte(const uint16_t addr, const uint16_t register_set, const uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
-    write_74hc595(byte | a0 | a1 | LOW(OPL2), 5);
-    write_74hc595(byte | a0 | a1 | HIGH(OPL2), 30);
+    write_GPIO(byte | a0 | a1 | LOW(OPL2), 5);
+    write_GPIO(byte | a0 | a1 | HIGH(OPL2), 30);
 }
 
-// YM3812 / YMF262
-static inline void OPL3_write_byte(uint16_t addr, uint16_t register_set, uint8_t byte) {
+// YMF262
+static inline void YMF262_write_byte(const uint16_t addr, const uint16_t register_set, const uint8_t byte) {
     const uint16_t a0 = addr ? A0 : 0;
     const uint16_t a1 = register_set ? A1 : 0;
 
-    write_74hc595(byte | a0 | a1 | LOW(OPL3), 5);
-    write_74hc595(byte | a0 | a1 | HIGH(OPL3), 0);
+    write_GPIO(byte | a0 | a1 | LOW(OPL3), 5);
+    write_GPIO(byte | a0 | a1 | HIGH(OPL3), 0);
 }
 
 enum chip_type {
@@ -155,12 +143,11 @@ enum chip_type {
 #define CHIPN(b) (b & 1)
 #define TYPE(b) (b & 2)
 
-void static inline reset_chips() {
+static inline void reset_chips() {
     control_bits = 0;
-    write_74hc595(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3), 10);
-    write_74hc595(HIGH(IC), 10);
-    write_74hc595(LOW(IC), 100);
-    write_74hc595(HIGH(IC), 10);
+    write_GPIO(HIGH(SN_1_CS | OPL2 | SAA_1_CS | SAA_2_CS | OPL3 | IC), 10);
+    write_GPIO(LOW(IC), 100);
+    write_GPIO(HIGH(IC), 10);
 
     // Mute SN76489
     SN76489_write(0x9F);
@@ -169,156 +156,82 @@ void static inline reset_chips() {
     SN76489_write(0xFF);
 
     // Mute SAA1099
-    SAA1099_write(1, 0, 0x1C); SAA1099_write(0, 0, 0);
-    SAA1099_write(1, 1, 0x1C); SAA1099_write(0, 1, 0);
+    SAA1099_write(1, 0, 0x1C);
+    SAA1099_write(0, 0, 0);
+    SAA1099_write(1, 1, 0x1C);
+    SAA1099_write(0, 1, 0);
 
     for (int i = 0; i < 6; i++) {
-        sleep_ms(23);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(23);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        set_ws2812b_HSV(0, i * 40, 250, 40);
+        sleep_ms(60);
     }
 }
 
-#define SOUND_FREQUENCY (49716)
-i2s_config_t i2s_config = i2s_get_default_config();
-static int16_t samples[2][888*2] = { 0 };
-static int active_buffer = 0;
-static int sample_index = 0;
-semaphore vga_start_semaphore;
-
-
-void __time_critical_func() second_core() {
-    i2s_config.sample_freq = SOUND_FREQUENCY;
-    i2s_config.dma_trans_count = SOUND_FREQUENCY / 60; // 60 FPS
-    i2s_volume(&i2s_config, 8);
-    i2s_init(&i2s_config);
-
-    uint64_t tick = time_us_64();
-    uint64_t last_sound_tick = tick;
-
-    sem_acquire_blocking(&vga_start_semaphore);
-
-    while (true) {
-        // Sound frequency 44100
-        if (tick >= last_sound_tick + (1000000 / SOUND_FREQUENCY)) {
-
-            if (sample_index++ >= i2s_config.dma_trans_count) {
-                sample_index = 0;
-                i2s_dma_write(&i2s_config, samples[active_buffer]);
-                active_buffer ^= 1;
-            }
-
-            last_sound_tick = tick;
-        }
-
-
-
-        tick = time_us_64();
-        tight_loop_contents();
-    }
-}
 int __time_critical_func() main() {
     overclock();
 
     stdio_usb_init();
 
-    clock_init(CLOCK_PIN, CLOCK_FREQUENCY);
-    clock_init(CLOCK_PIN2, CLOCK_FREQUENCY2);
+    gpio_init_mask(OUT_PIN_MASK);
+    gpio_set_dir_out_masked(OUT_PIN_MASK);
 
-    gpio_init(RESET_KEY_PIN);
-    gpio_set_dir(RESET_KEY_PIN, GPIO_IN);
-    gpio_pull_up(RESET_KEY_PIN);
+    ini_chips_clocks();
 
-    init_74hc595();
-
-    sem_init(&vga_start_semaphore, 0, 1);
-    multicore_launch_core1(second_core);
-    sem_release(&vga_start_semaphore);
-
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-
-    gpio_init(TEST_KEY_PIN);
-    gpio_set_dir(TEST_KEY_PIN, GPIO_OUT);
+    init_ws2812b();
 
     reset_chips();
+
+    uint8_t ws2812b_color = 0;
+    uint8_t ws2812b_brightness = 0;
+    uint32_t timer_update = 0;
+
     int is_data_byte = false;
-    int current_clock = 0;
     uint8_t command = 0;
 
-
-    while (0) {
-        write_74hc595(0b0101, 0);
-        sleep_ms(1000);
-        write_74hc595(0b1010, 0);
-        sleep_ms(1000);
-    }
-
     while (true) {
-        gpio_put(TEST_KEY_PIN, false);
+        const int data = getchar_timeout_us(50);
 
-        if (!gpio_get(RESET_KEY_PIN)) { reset_chips(); }
-        int data = getchar_timeout_us(500);
+        if (time_ms() - timer_update > TIMER_PERIOD_MS) {
+            timer_update = time_ms();
+
+            set_ws2812b_HSV(0, ws2812b_color, 250, ws2812b_brightness);
+
+            if (ws2812b_brightness)
+                ws2812b_brightness--;
+        }
+
 
         if (PICO_ERROR_TIMEOUT != data) {
-            gpio_put(TEST_KEY_PIN, true);
-
             if (is_data_byte) {
-                gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
+                ws2812b_brightness = 60;
 
                 switch (CHIP(command)) {
                     case SN76489: /* TODO: GameGear channel mapping */
-                        if (current_clock != 0) {
-                            clock_init(CLOCK_PIN2, BASE_CLOCK_FREQUENCY);
-                            current_clock = 0;
-                        }
                         SN76489_write(data);
+                        ws2812b_color = 0;
                         break;
 
                     case YM2413:
                         YM2413_write(TYPE(command), data);
+                        ws2812b_color = 30;
                         break;
 
                     case YMF262:
-                        if (current_clock != 1) {
-                            clock_init(CLOCK_PIN2, 4 * BASE_CLOCK_FREQUENCY);
-                            current_clock = 1;
-                        }
-                        OPL3_write_byte(TYPE(command), CHIPN(command), data);
+                        YMF262_write_byte(TYPE(command), CHIPN(command), data);
+                        ws2812b_color = 240;
                         break;
+
                     case YM3812:
-                    case YM2612:
-                        if (current_clock != 0) {
-                            clock_init(CLOCK_PIN2, BASE_CLOCK_FREQUENCY);
-                            current_clock = 0;
-                        }
-                        OPL2_write_byte(TYPE(command), CHIPN(command), data);
+                        YM3812_write_byte(TYPE(command), CHIPN(command), data);
+                        ws2812b_color = 60;
                         break;
 
                     case SAA1099:
                         SAA1099_write(TYPE(command), CHIPN(command), data);
+                        ws2812b_color = 180;
                         break;
 
-                    case PCM: {
-                        static int16_t sample = 0;
-                        if (TYPE(command)) {
-                            sample |= (data & 0xff) << 8;
-                            samples[!active_buffer][sample_index] = sample;
-                        } else {
-                            sample = data & 0xff;
-                        }
-                        gpio_put(PICO_DEFAULT_LED_PIN, TYPE(command));
-                        break;
-                    }
                     case 0xf:
-                        if (command & 0b1000) {
-                            const uint8_t clock_multiplier = (command & 0b11) + 1;
-                            clock_init(command & 0b100 ? CLOCK_PIN : CLOCK_PIN2,
-                                       BASE_CLOCK_FREQUENCY * clock_multiplier);
-
-                        }
-
                         reset_chips();
                         break;
                 }
@@ -329,4 +242,3 @@ int __time_critical_func() main() {
         }
     }
 }
-

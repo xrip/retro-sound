@@ -40,21 +40,17 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
-add_subdirectory(audio)
-
 target_link_libraries(${PROJECT_NAME} PRIVATE
 		pico_runtime
-		pico_stdlib
-        hardware_pio
+		pico_stdio
+
         hardware_pwm
         hardware_dma
-		pico_multicore
-		audio
+		hardware_pio
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 		PICO_FLASH_SIZE_BYTES=16777216
-		AUDIO_PWM_PIN=21
 )
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
