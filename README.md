@@ -3,6 +3,8 @@
 ## What is?
 RP2040 Retro Sound is a project that enables the Raspberry Pi Pico (RP2040) to serve as a COM port passthrough for various FM retro sound chips like the SAA1099, YM2413, SN76489, YM3812, and YMF262. 
 
+[Interactive BOM (bill of materials)](https://xrip.github.io/retro-sound/hardware/bom/ibom.html)
+
 Assembled PCB:
 
 <img src='https://github.com/user-attachments/assets/a69674ed-7f3c-4460-88c9-afa7530ff6ef' title='assembled pcb' height=640>
