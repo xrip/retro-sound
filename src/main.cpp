@@ -218,7 +218,7 @@ int __time_critical_func() main() {
 
                     case YMF262:
                         YMF262_write_byte(TYPE(command), CHIPN(command), data);
-                        ws2812b_color = 240;
+                        ws2812b_color = 30;
                         break;
 
                     case YM3812:
@@ -228,7 +228,7 @@ int __time_critical_func() main() {
 
                     case SAA1099:
                         SAA1099_write(TYPE(command), CHIPN(command), data);
-                        ws2812b_color = 180;
+                        ws2812b_color = 120;
                         break;
 
                     case 0xf:
