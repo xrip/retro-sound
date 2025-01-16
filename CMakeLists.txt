@@ -1,13 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
-include(pico_sdk_import.cmake)
+include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 project(retro-sound C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 option(SN76489_REVERSED "SN76489 data pins revered" OFF)
-
-# Run from SRAM
-set(PICO_COPY_TO_RAM,1)
-#set(PICO_DEFAULT_BINARY_TYPE copy_to_ram)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
