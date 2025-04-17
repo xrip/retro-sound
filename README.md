@@ -46,7 +46,7 @@ The second byte is the data byte, which is routed directly to the chip.
 ## Requirements
 1. PCB (gerbers available via releases, or you can use whole KiCad project from ``hardware`` dir)
 2. RP2040 mini: The microcontroller that powers the project.
-4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF288 is recommended for its versatility. 
+4. Retro Sound Chips: Choose from SN76489, SAA1099, YM2413, YM3812, YMF262, or any OPN2 compatible chip. The YMF262 is recommended for its versatility. 
 5. Capacitors and Resistors: A few passive components for stable operation.
 6. Basic Soldering Skills: Minimal soldering is required to assemble the hardware.
 
